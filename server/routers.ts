@@ -106,7 +106,13 @@ export const appRouter = router({
       return { success: true };
     }),
     mine: protectedProcedure.query(({ ctx }) => db.getUserFigurinhas(ctx.user!.id)),
-    list: protectedProcedure.input(z.object({ championshipId: z.number().int().positive().optional(), type: z.enum(["duplicate", "needed"]).optional() }).optional()).query(({ input }) => db.getMarketplaceFigurinhas(input?.championshipId, input?.type)),
+    list: protectedProcedure.input(z.object({
+      championshipId: z.number().int().positive().optional(),
+      type: z.enum(["duplicate", "needed"]).optional(),
+      condition: z.enum(["mint", "good", "fair", "poor"]).optional(),
+      search: z.string().trim().max(80).optional(),
+      sort: z.enum(["newest", "cardNumber", "playerName"]).optional(),
+    }).optional()).query(({ input }) => db.getMarketplaceFigurinhas(input ?? {})),
     byId: protectedProcedure.input(z.object({ id: z.number().int().positive() })).query(({ input }) => db.getFigurinhaById(input.id)),
     remove: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       const card = await db.getFigurinhaById(input.id);

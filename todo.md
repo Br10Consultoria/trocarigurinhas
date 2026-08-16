@@ -9,3 +9,8 @@
 ## Nota de estado
 
 O sandbox foi reiniciado e o working tree atual voltou ao commit inicial `e1e7b159`. As alterações avançadas da sessão anterior não estão presentes neste working tree; portanto, não serão apresentadas como publicadas sem reconstrução e validação.
+
+- [x] Adicionar busca por número, nome do jogador e observações no marketplace.
+- [x] Adicionar filtros por campeonato, tipo de figurinha, condição e ordenação.
+- [x] Implementar estados de carregamento, nenhum resultado e limpeza de filtros.
+- [x] Criar testes para os parâmetros de busca e filtros do marketplace.

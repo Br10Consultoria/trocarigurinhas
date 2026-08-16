@@ -1,4 +1,4 @@
-import { and, desc, eq, lte } from "drizzle-orm";
+import { and, asc, desc, eq, like, lte, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { nanoid } from "nanoid";
 import {
@@ -133,18 +133,55 @@ export async function getUserFigurinhas(userId: number) {
   return db.select({ card: figurinhas, championship: championships }).from(figurinhas).leftJoin(championships, eq(figurinhas.championshipId, championships.id)).where(eq(figurinhas.userId, userId)).orderBy(desc(figurinhas.createdAt));
 }
 
-export async function getMarketplaceFigurinhas(championshipId?: number, type?: "duplicate" | "needed") {
+export type MarketplaceFilters = {
+  championshipId?: number;
+  type?: "duplicate" | "needed";
+  condition?: "mint" | "good" | "fair" | "poor";
+  search?: string;
+  sort?: "newest" | "cardNumber" | "playerName";
+};
+
+export function normalizeMarketplaceFilters(input: MarketplaceFilters = {}): MarketplaceFilters {
+  return {
+    championshipId: input.championshipId,
+    type: input.type,
+    condition: input.condition,
+    search: input.search?.trim().slice(0, 80) || undefined,
+    sort: input.sort ?? "newest",
+  };
+}
+
+export async function getMarketplaceFigurinhas(filtersInput: MarketplaceFilters = {}) {
   const db = await getDb();
+  filtersInput = normalizeMarketplaceFilters(filtersInput);
   if (!db) return [];
   const filters = [eq(figurinhas.status, "available")];
-  if (championshipId) filters.push(eq(figurinhas.championshipId, championshipId));
-  if (type) filters.push(eq(figurinhas.type, type));
+  if (filtersInput.championshipId) filters.push(eq(figurinhas.championshipId, filtersInput.championshipId));
+  if (filtersInput.type) filters.push(eq(figurinhas.type, filtersInput.type));
+  if (filtersInput.condition) filters.push(eq(figurinhas.condition, filtersInput.condition));
+  const search = filtersInput.search;
+  if (search) {
+    const pattern = `%${search}%`;
+    filters.push(or(
+      like(figurinhas.cardNumber, pattern),
+      like(figurinhas.playerName, pattern),
+      like(figurinhas.notes, pattern),
+      like(championships.name, pattern),
+    )!);
+  }
+
+  const orderBy = filtersInput.sort === "cardNumber"
+    ? asc(figurinhas.cardNumber)
+    : filtersInput.sort === "playerName"
+      ? asc(figurinhas.playerName)
+      : desc(figurinhas.createdAt);
+
   return db.select({ card: figurinhas, owner: users, championship: championships })
     .from(figurinhas)
     .leftJoin(users, eq(figurinhas.userId, users.id))
     .leftJoin(championships, eq(figurinhas.championshipId, championships.id))
     .where(and(...filters))
-    .orderBy(desc(figurinhas.createdAt));
+    .orderBy(orderBy);
 }
 
 export async function getFigurinhaById(id: number) {
