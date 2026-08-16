@@ -5,12 +5,13 @@ import type { TrpcContext } from "./_core/context";
 const mocks = vi.hoisted(() => ({
   completeReserva: vi.fn(),
   getReservaById: vi.fn(),
+  getNegotiationHistoryForUser: vi.fn(),
   logActivity: vi.fn(),
 }));
 
 vi.mock("./db", () => mocks);
 
-const { completeReserva, getReservaById, logActivity } = mocks;
+const { completeReserva, getReservaById, getNegotiationHistoryForUser, logActivity } = mocks;
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
@@ -45,7 +46,16 @@ describe("reservas.complete", () => {
     getReservaById.mockResolvedValue({
       reservation: { id: 7, reservedByUserId: 1, ownerId: 2, status: "active" },
     });
-    completeReserva.mockResolvedValue({ id: 42, type: "purchase" });
+    const completedNegotiation = { id: 42, type: "purchase", amount: "12.50" };
+    completeReserva.mockResolvedValue(completedNegotiation);
+    getNegotiationHistoryForUser.mockResolvedValue([{
+      negotiation: completedNegotiation,
+      card: { cardNumber: "07", playerName: "Jogador Teste" },
+      championship: { name: "Copa de Teste", year: 2026 },
+      seller: { id: 2, name: "Vendedor", whatsapp: null },
+      buyer: { id: 1, name: "Completion Test", whatsapp: null },
+      perspective: "buyer",
+    }]);
   });
 
   it("registra uma compra concluída no histórico", async () => {
@@ -56,5 +66,11 @@ describe("reservas.complete", () => {
     expect(result).toEqual({ success: true, negotiationId: 42 });
     expect(completeReserva).toHaveBeenCalledWith(7, "purchase", 12.5);
     expect(logActivity).toHaveBeenCalledWith(1, "RESERVATION_COMPLETED", "Compra concluída na reserva 7", "negotiation", 42);
+
+    const history = await caller.negotiations.history({ type: "purchase" });
+    expect(history).toHaveLength(1);
+    expect(history[0]?.negotiation.id).toBe(42);
+    expect(history[0]?.negotiation.type).toBe("purchase");
+    expect(getNegotiationHistoryForUser).toHaveBeenCalledWith(1, "purchase");
   });
 });

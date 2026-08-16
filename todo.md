@@ -40,5 +40,17 @@ As funcionalidades de backend presentes no checkpoint foram reconstruídas e val
 
 ## Verificação final do histórico
 
-- [ ] Publicar esta funcionalidade de histórico no GitHub e validar o commit remoto com tabela, procedure e rota de perfil.
-- [ ] Adicionar teste do fluxo de conclusão de reserva gerando uma negociação e disponibilizando-a no histórico.
+- [x] Publicar esta funcionalidade de histórico no GitHub e validar o commit remoto com tabela, procedure e rota de perfil.
+- [x] Adicionar teste do fluxo de conclusão de reserva gerando uma negociação e disponibilizando-a no histórico.
+
+
+## Cobertura de integração do histórico
+
+- [x] Cobrir em teste o fluxo completo de concluir uma reserva e consultar a negociação no histórico do usuário.
+- [x] Executar novamente os testes e sincronizar o ajuste no GitHub.
+
+
+## Fechamento após integração real
+
+- [x] Teste de integração real sem mock, concluindo reserva e lendo o registro no histórico.
+- [x] Executar a suíte completa e publicar o teste de integração atualizado no GitHub com SHA remoto verificado.
