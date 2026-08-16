@@ -22,3 +22,9 @@ As funcionalidades de backend presentes no checkpoint foram reconstruídas e val
 - [x] Tornar o 2FA obrigatório por sessão para liberar operações administrativas após o login.
 - [ ] Registrar o job Heartbeat de expiração automática após o próximo deploy; o endpoint já está montado.
 - [x] Separar claramente HTTPS gerenciado do Manus e o guia opcional de Nginx/SSL próprio.
+
+
+## Política de entrega
+
+- [ ] Enviar a versão atual ao GitHub e verificar o commit remoto.
+- [ ] Sincronizar obrigatoriamente futuras atualizações validadas com o repositório GitHub antes da entrega ao usuário.
