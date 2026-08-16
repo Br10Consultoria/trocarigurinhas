@@ -92,4 +92,4 @@ As funcionalidades de backend presentes no checkpoint foram reconstruídas e val
 
 ## Checkpoint pós-publicação
 
-- [ ] Salvar um novo checkpoint após a melhoria de leitura em massa já sincronizada no GitHub, garantindo correspondência com o commit remoto `f66ef95`.
+- [x] Salvar um novo checkpoint após a melhoria de leitura em massa já sincronizada no GitHub, garantindo correspondência com o commit remoto `f66ef95`.
