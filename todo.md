@@ -86,5 +86,10 @@ As funcionalidades de backend presentes no checkpoint foram reconstruídas e val
 
 ## Fechamento da leitura em massa
 
-- [ ] Publicar a melhoria da central de notificações no GitHub e validar o SHA remoto após o push.
-- [ ] Salvar checkpoint final da melhoria de leitura em massa após a sincronização remota.
+- [x] Publicar a melhoria da central de notificações no GitHub e validar o SHA remoto após o push.
+- [x] Salvar checkpoint final da melhoria de leitura em massa após a sincronização remota.
+
+
+## Checkpoint pós-publicação
+
+- [ ] Salvar um novo checkpoint após a melhoria de leitura em massa já sincronizada no GitHub, garantindo correspondência com o commit remoto `f66ef95`.
