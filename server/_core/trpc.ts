@@ -31,7 +31,7 @@ export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
 
-    if (!ctx.user || ctx.user.role !== 'admin') {
+    if (!ctx.user || ctx.user.role !== "admin") {
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     }
 
@@ -41,5 +41,18 @@ export const adminProcedure = t.procedure.use(
         user: ctx.user,
       },
     });
+  }),
+);
+
+/** Administrative actions are unavailable until the admin has completed 2FA setup. */
+export const admin2FAProcedure = adminProcedure.use(
+  t.middleware(async ({ ctx, next }) => {
+    if (!ctx.user!.twoFactorEnabled) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Ative o 2FA para acessar esta área administrativa.",
+      });
+    }
+    return next({ ctx });
   }),
 );
