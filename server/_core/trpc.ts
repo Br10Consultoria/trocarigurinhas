@@ -1,4 +1,6 @@
-import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
+import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG, COOKIE_NAME } from '@shared/const';
+import { parse as parseCookie } from "cookie";
+import { hasValidAdminTwoFactorSession } from "../db";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
@@ -53,6 +55,16 @@ export const admin2FAProcedure = adminProcedure.use(
         message: "Ative o 2FA para acessar esta área administrativa.",
       });
     }
+
+    const sessionToken = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME];
+    const verified = await hasValidAdminTwoFactorSession(ctx.user!.id, sessionToken ?? "");
+    if (!verified) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Valide o segundo fator para continuar nesta área administrativa.",
+      });
+    }
+
     return next({ ctx });
   }),
 );

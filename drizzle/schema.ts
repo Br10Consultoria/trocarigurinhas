@@ -107,6 +107,21 @@ export const twoFactorBackupCodes = mysqlTable(
   (table) => ({ userIdx: index("two_factor_codes_user_idx").on(table.userId) }),
 );
 
+export const adminTwoFactorSessions = mysqlTable(
+  "adminTwoFactorSessions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    sessionHash: varchar("sessionHash", { length: 128 }).notNull().unique(),
+    expiresAt: timestamp("expiresAt").notNull(),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index("admin_2fa_sessions_user_idx").on(table.userId),
+    expiresIdx: index("admin_2fa_sessions_expires_idx").on(table.expiresAt),
+  }),
+);
+
 export const activityLogs = mysqlTable(
   "activityLogs",
   {

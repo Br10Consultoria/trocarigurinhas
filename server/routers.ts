@@ -1,5 +1,6 @@
 import { COOKIE_NAME } from "@shared/const";
 import { TRPCError } from "@trpc/server";
+import { parse as parseCookie } from "cookie";
 import { z } from "zod";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { admin2FAProcedure, adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
@@ -9,11 +10,21 @@ import * as twoFactor from "./twoFactor";
 
 const secretKey = () => process.env.JWT_SECRET ?? "troca-figurinhas-local-secret";
 
+function getRequestSessionToken(req: { headers: { cookie?: string; authorization?: string } }) {
+  const cookieToken = parseCookie(req.headers.cookie ?? "")[COOKIE_NAME];
+  if (cookieToken) return cookieToken;
+  const authorization = req.headers.authorization;
+  return authorization?.startsWith("Bearer ") ? authorization.slice(7) : "";
+}
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(({ ctx }) => ctx.user),
-    logout: publicProcedure.mutation(({ ctx }) => {
+    logout: publicProcedure.mutation(async ({ ctx }) => {
+      if (ctx.user?.role === "admin") {
+        await db.revokeAdminTwoFactorSession(ctx.user.id, getRequestSessionToken(ctx.req));
+      }
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
@@ -35,6 +46,12 @@ export const appRouter = router({
       required: ctx.user!.role === "admin",
       enabled: ctx.user!.twoFactorEnabled,
     })),
+    sessionStatus: protectedProcedure.query(async ({ ctx }) => ({
+      required: ctx.user!.role === "admin" && ctx.user!.twoFactorEnabled,
+      verified: ctx.user!.role !== "admin" || !ctx.user!.twoFactorEnabled
+        ? true
+        : await db.hasValidAdminTwoFactorSession(ctx.user!.id, getRequestSessionToken(ctx.req)),
+    })),
     setup: adminProcedure.mutation(async ({ ctx }) => {
       const { secret, otpauthUrl } = twoFactor.generateTwoFactorSecret(ctx.user!.email ?? ctx.user!.name ?? "admin");
       return { secret, otpauthUrl, backupCodes: twoFactor.generateBackupCodes() };
@@ -52,13 +69,16 @@ export const appRouter = router({
       await db.logActivity(ctx.user!.id, "2FA_ENABLED", "2FA ativado para a conta administrativa");
       return { success: true };
     }),
-    verify: adminProcedure.input(z.object({ token: z.string().length(6), backupCode: z.string().optional() })).mutation(async ({ ctx, input }) => {
+    verify: adminProcedure.input(z.object({ token: z.string().length(6).optional(), backupCode: z.string().min(8).optional() }).refine((value) => Boolean(value.token || value.backupCode), { message: "Informe um token ou código de recuperação." })).mutation(async ({ ctx, input }) => {
       const encrypted = ctx.user!.twoFactorSecret;
       if (!encrypted) throw new TRPCError({ code: "BAD_REQUEST", message: "Configure o 2FA primeiro." });
       const verified = input.backupCode
         ? await db.useTwoFactorBackupCode(ctx.user!.id, input.backupCode)
-        : twoFactor.verifyTwoFactorToken(twoFactor.decryptSecret(encrypted, secretKey()), input.token);
+        : input.token ? twoFactor.verifyTwoFactorToken(twoFactor.decryptSecret(encrypted, secretKey()), input.token) : false;
       if (!verified) throw new TRPCError({ code: "UNAUTHORIZED", message: "Não foi possível validar o segundo fator." });
+      const sessionToken = getRequestSessionToken(ctx.req);
+      if (!sessionToken) throw new TRPCError({ code: "UNAUTHORIZED", message: "Sessão de login não encontrada." });
+      await db.createAdminTwoFactorSession(ctx.user!.id, sessionToken);
       return { success: true };
     }),
     disable: adminProcedure.input(z.object({ token: z.string().length(6) })).mutation(async ({ ctx, input }) => {
@@ -167,6 +187,31 @@ export const appRouter = router({
   admin: router({
     stats: admin2FAProcedure.query(() => db.countPlatformEntities()),
     users: admin2FAProcedure.query(() => db.listUsers()),
+    cards: admin2FAProcedure.query(() => db.listAllFigurinhasForAdmin()),
+    reservations: admin2FAProcedure.query(() => db.listActiveReservasForAdmin()),
+    removeCard: admin2FAProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const card = await db.getFigurinhaById(input.id);
+      if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Figurinha não encontrada." });
+      if (card.card.status === "reserved") throw new TRPCError({ code: "CONFLICT", message: "Figurinha reservada não pode ser removida." });
+      await db.deleteFigurinha(input.id);
+      await db.logActivity(ctx.user!.id, "ADMIN_CARD_DELETED", `Figurinha ${input.id} removida`, "figurinha", input.id);
+      return { success: true };
+    }),
+    updateCardStatus: admin2FAProcedure.input(z.object({ id: z.number().int().positive(), status: z.enum(["available", "reserved", "traded"]) })).mutation(async ({ ctx, input }) => {
+      await db.updateFigurinhaStatus(input.id, input.status);
+      await db.logActivity(ctx.user!.id, "ADMIN_CARD_STATUS_UPDATED", `Figurinha ${input.id}: ${input.status}`, "figurinha", input.id);
+      return { success: true };
+    }),
+    cancelReservation: admin2FAProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      await db.setReservaStatus(input.id, "cancelled");
+      await db.logActivity(ctx.user!.id, "ADMIN_RESERVATION_CANCELLED", `Reserva ${input.id} cancelada`, "reserva", input.id);
+      return { success: true };
+    }),
+    completeReservation: admin2FAProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      await db.setReservaStatus(input.id, "completed");
+      await db.logActivity(ctx.user!.id, "ADMIN_RESERVATION_COMPLETED", `Reserva ${input.id} concluída`, "reserva", input.id);
+      return { success: true };
+    }),
     expireReservations: admin2FAProcedure.mutation(async ({ ctx }) => ({ expired: await db.expireOldReservas(), actor: ctx.user!.id })),
   }),
 });

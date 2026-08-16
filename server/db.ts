@@ -1,8 +1,10 @@
-import { and, asc, desc, eq, like, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, like, lte, or } from "drizzle-orm";
+import { createHash } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
 import { nanoid } from "nanoid";
 import {
   activityLogs,
+  adminTwoFactorSessions,
   championships,
   figurinhas,
   InsertUser,
@@ -72,6 +74,38 @@ export async function updateUserProfile(userId: number, input: { name?: string; 
   await db.update(users).set(input).where(eq(users.id, userId));
 }
 
+function hashAdminSessionToken(sessionToken: string) {
+  return createHash("sha256").update(sessionToken).digest("hex");
+}
+
+export async function createAdminTwoFactorSession(userId: number, sessionToken: string, expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000)) {
+  const db = await getDb();
+  if (!db || !sessionToken) throw new Error("Database not available");
+  const sessionHash = hashAdminSessionToken(sessionToken);
+  await db.insert(adminTwoFactorSessions).values({ userId, sessionHash, expiresAt }).onDuplicateKeyUpdate({ set: { userId, expiresAt } });
+}
+
+export async function hasValidAdminTwoFactorSession(userId: number, sessionToken: string) {
+  const db = await getDb();
+  if (!db || !sessionToken) return false;
+  const sessionHash = hashAdminSessionToken(sessionToken);
+  const rows = await db.select({ id: adminTwoFactorSessions.id }).from(adminTwoFactorSessions).where(and(
+    eq(adminTwoFactorSessions.userId, userId),
+    eq(adminTwoFactorSessions.sessionHash, sessionHash),
+    gt(adminTwoFactorSessions.expiresAt, new Date()),
+  )).limit(1);
+  return Boolean(rows[0]);
+}
+
+export async function revokeAdminTwoFactorSession(userId: number, sessionToken: string) {
+  const db = await getDb();
+  if (!db || !sessionToken) return;
+  await db.delete(adminTwoFactorSessions).where(and(
+    eq(adminTwoFactorSessions.userId, userId),
+    eq(adminTwoFactorSessions.sessionHash, hashAdminSessionToken(sessionToken)),
+  ));
+}
+
 export async function updateUserTwoFactor(userId: number, secret: string | null, enabled: boolean) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -102,6 +136,29 @@ export async function listUsers() {
   const db = await getDb();
   if (!db) return [];
   return db.select({ id: users.id, name: users.name, email: users.email, whatsapp: users.whatsapp, role: users.role, twoFactorEnabled: users.twoFactorEnabled, createdAt: users.createdAt }).from(users).orderBy(desc(users.createdAt));
+}
+
+export async function listAllFigurinhasForAdmin() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ card: figurinhas, owner: users, championship: championships })
+    .from(figurinhas)
+    .leftJoin(users, eq(figurinhas.userId, users.id))
+    .leftJoin(championships, eq(figurinhas.championshipId, championships.id))
+    .orderBy(desc(figurinhas.createdAt));
+}
+
+export async function listActiveReservasForAdmin() {
+  const db = await getDb();
+  if (!db) return [];
+  await expireOldReservas();
+  return db.select({ reservation: reservas, card: figurinhas, owner: users, championship: championships })
+    .from(reservas)
+    .leftJoin(figurinhas, eq(reservas.figurinhaId, figurinhas.id))
+    .leftJoin(users, eq(reservas.ownerId, users.id))
+    .leftJoin(championships, eq(figurinhas.championshipId, championships.id))
+    .where(eq(reservas.status, "active"))
+    .orderBy(reservas.expiresAt);
 }
 
 export async function countPlatformEntities() {

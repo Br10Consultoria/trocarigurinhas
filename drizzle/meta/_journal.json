@@ -8,6 +8,13 @@
       "when": 1786848621859,
       "tag": "0000_great_silvermane",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1786849888431,
+      "tag": "0001_blue_elektra",
+      "breakpoints": true
     }
   ]
 }

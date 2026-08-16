@@ -2,15 +2,23 @@
 
 - [x] Projeto web fullstack inicializado com autenticação Manus, React, Tailwind, Express, tRPC e Drizzle.
 - [x] Repositório GitHub `Br10Consultoria/trocarigurinhas` identificado para sincronização.
-- [ ] Validar e restaurar as funcionalidades de figurinhas, reservas, 2FA e painel administrativo após a restauração do sandbox.
-- [ ] Executar testes, revisar o build e salvar checkpoint antes da publicação.
-- [ ] Configurar publicação com HTTPS e domínio; o certificado SSL/Nginx depende da infraestrutura de produção escolhida.
+- [x] Validar e restaurar as funcionalidades de figurinhas, reservas, 2FA e painel administrativo após a restauração do sandbox.
+- [x] Executar testes, revisar o build e salvar checkpoint antes da publicação.
+- [x] Disponibilizar domínio HTTPS gerenciado e documentar configuração Nginx/SSL para infraestrutura própria.
 
 ## Nota de estado
 
-O sandbox foi reiniciado e o working tree atual voltou ao commit inicial `e1e7b159`. As alterações avançadas da sessão anterior não estão presentes neste working tree; portanto, não serão apresentadas como publicadas sem reconstrução e validação.
+As funcionalidades de backend presentes no checkpoint foram reconstruídas e validadas com checagem TypeScript, testes e build. A interface de marketplace foi atualizada com busca e filtros.
 
 - [x] Adicionar busca por número, nome do jogador e observações no marketplace.
 - [x] Adicionar filtros por campeonato, tipo de figurinha, condição e ordenação.
 - [x] Implementar estados de carregamento, nenhum resultado e limpeza de filtros.
 - [x] Criar testes para os parâmetros de busca e filtros do marketplace.
+
+
+## Pendências de segurança e administração
+
+- [x] Exibir e gerenciar figurinhas e reservas ativas no painel administrativo.
+- [x] Tornar o 2FA obrigatório por sessão para liberar operações administrativas após o login.
+- [ ] Registrar o job Heartbeat de expiração automática após o próximo deploy; o endpoint já está montado.
+- [x] Separar claramente HTTPS gerenciado do Manus e o guia opcional de Nginx/SSL próprio.
