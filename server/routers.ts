@@ -174,14 +174,24 @@ export const appRouter = router({
       await db.logActivity(ctx.user!.id, "RESERVATION_CANCELLED", `Reserva ${input.id} cancelada`, "reserva", input.id);
       return { success: true };
     }),
-    complete: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    complete: protectedProcedure.input(z.object({ id: z.number().int().positive(), type: z.enum(["trade", "purchase"]).default("trade"), amount: z.number().nonnegative().max(999999).optional() })).mutation(async ({ ctx, input }) => {
       const result = await db.getReservaById(input.id);
       if (!result) throw new TRPCError({ code: "NOT_FOUND" });
       if (result.reservation.reservedByUserId !== ctx.user!.id && result.reservation.ownerId !== ctx.user!.id && ctx.user!.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-      await db.setReservaStatus(input.id, "completed");
-      await db.logActivity(ctx.user!.id, "RESERVATION_COMPLETED", `Reserva ${input.id} concluída`, "reserva", input.id);
-      return { success: true };
+      try {
+        const negotiation = await db.completeReserva(input.id, input.type, input.amount);
+        await db.logActivity(ctx.user!.id, "RESERVATION_COMPLETED", `${input.type === "purchase" ? "Compra" : "Troca"} concluída na reserva ${input.id}`, "negotiation", negotiation?.id);
+        return { success: true, negotiationId: negotiation?.id };
+      } catch (error) {
+        if (error instanceof Error && error.message === "RESERVA_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND" });
+        if (error instanceof Error && error.message === "RESERVA_NOT_ACTIVE") throw new TRPCError({ code: "CONFLICT", message: "Esta reserva não está mais ativa." });
+        throw error;
+      }
     }),
+  }),
+
+  negotiations: router({
+    history: protectedProcedure.input(z.object({ type: z.enum(["trade", "purchase"]).optional() }).optional()).query(({ ctx, input }) => db.getNegotiationHistoryForUser(ctx.user!.id, input?.type)),
   }),
 
   admin: router({
@@ -207,10 +217,16 @@ export const appRouter = router({
       await db.logActivity(ctx.user!.id, "ADMIN_RESERVATION_CANCELLED", `Reserva ${input.id} cancelada`, "reserva", input.id);
       return { success: true };
     }),
-    completeReservation: admin2FAProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
-      await db.setReservaStatus(input.id, "completed");
-      await db.logActivity(ctx.user!.id, "ADMIN_RESERVATION_COMPLETED", `Reserva ${input.id} concluída`, "reserva", input.id);
-      return { success: true };
+    completeReservation: admin2FAProcedure.input(z.object({ id: z.number().int().positive(), type: z.enum(["trade", "purchase"]).default("trade"), amount: z.number().nonnegative().max(999999).optional() })).mutation(async ({ ctx, input }) => {
+      try {
+        const negotiation = await db.completeReserva(input.id, input.type, input.amount);
+        await db.logActivity(ctx.user!.id, "ADMIN_RESERVATION_COMPLETED", `${input.type === "purchase" ? "Compra" : "Troca"} concluída na reserva ${input.id}`, "negotiation", negotiation?.id);
+        return { success: true, negotiationId: negotiation?.id };
+      } catch (error) {
+        if (error instanceof Error && error.message === "RESERVA_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND" });
+        if (error instanceof Error && error.message === "RESERVA_NOT_ACTIVE") throw new TRPCError({ code: "CONFLICT", message: "Esta reserva não está mais ativa." });
+        throw error;
+      }
     }),
     expireReservations: admin2FAProcedure.mutation(async ({ ctx }) => ({ expired: await db.expireOldReservas(), actor: ctx.user!.id })),
   }),

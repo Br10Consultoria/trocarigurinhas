@@ -28,3 +28,17 @@ As funcionalidades de backend presentes no checkpoint foram reconstruídas e val
 
 - [x] Enviar a versão atual ao GitHub e verificar o commit remoto.
 - [x] Sincronizar obrigatoriamente futuras atualizações validadas com o repositório GitHub antes da entrega ao usuário.
+
+
+## Histórico de negociações
+
+- [x] Criar tabela de negociações concluídas com tipo troca ou compra e vínculo com a reserva.
+- [x] Criar procedure autenticada para listar o histórico do usuário.
+- [x] Criar aba de histórico no perfil com filtros por tipo e estado vazio.
+- [x] Adicionar testes, validar build e publicar a atualização no GitHub.
+
+
+## Verificação final do histórico
+
+- [ ] Publicar esta funcionalidade de histórico no GitHub e validar o commit remoto com tabela, procedure e rota de perfil.
+- [ ] Adicionar teste do fluxo de conclusão de reserva gerando uma negociação e disponibilizando-a no histórico.

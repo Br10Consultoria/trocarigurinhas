@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, like, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, like, lte, or } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
 import { nanoid } from "nanoid";
@@ -8,6 +8,7 @@ import {
   championships,
   figurinhas,
   InsertUser,
+  negotiations,
   reservas,
   twoFactorBackupCodes,
   users,
@@ -314,6 +315,54 @@ export async function setReservaStatus(id: number, status: "completed" | "cancel
   if (!row[0]) return;
   await db.update(reservas).set({ status }).where(eq(reservas.id, id));
   await db.update(figurinhas).set({ status: status === "completed" ? "traded" : "available" }).where(eq(figurinhas.id, row[0].figurinhaId));
+}
+
+export async function completeReserva(reservaId: number, type: "trade" | "purchase", amount?: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.transaction(async (tx) => {
+    const rows = await tx.select().from(reservas).where(eq(reservas.id, reservaId)).limit(1);
+    const reserva = rows[0];
+    if (!reserva) throw new Error("RESERVA_NOT_FOUND");
+    const existing = await tx.select().from(negotiations).where(eq(negotiations.reservaId, reservaId)).limit(1);
+    if (existing[0]) return existing[0];
+    if (reserva.status !== "active") throw new Error("RESERVA_NOT_ACTIVE");
+    await tx.update(reservas).set({ status: "completed" }).where(eq(reservas.id, reservaId));
+    await tx.update(figurinhas).set({ status: "traded" }).where(eq(figurinhas.id, reserva.figurinhaId));
+    await tx.insert(negotiations).values({
+      reservaId,
+      figurinhaId: reserva.figurinhaId,
+      sellerId: reserva.ownerId,
+      buyerId: reserva.reservedByUserId,
+      type,
+      amount: amount === undefined ? undefined : amount.toFixed(2),
+      status: "completed",
+    });
+    const created = await tx.select().from(negotiations).where(eq(negotiations.reservaId, reservaId)).limit(1);
+    return created[0];
+  });
+}
+
+export async function getNegotiationHistoryForUser(userId: number, type?: "trade" | "purchase") {
+  const db = await getDb();
+  if (!db) return [];
+  const filters = [or(eq(negotiations.sellerId, userId), eq(negotiations.buyerId, userId))!];
+  if (type) filters.push(eq(negotiations.type, type));
+  const rows = await db.select({ negotiation: negotiations, card: figurinhas, championship: championships })
+    .from(negotiations)
+    .leftJoin(figurinhas, eq(negotiations.figurinhaId, figurinhas.id))
+    .leftJoin(championships, eq(figurinhas.championshipId, championships.id))
+    .where(and(...filters))
+    .orderBy(desc(negotiations.completedAt));
+  const userIds = Array.from(new Set(rows.flatMap(({ negotiation }) => [negotiation.sellerId, negotiation.buyerId])));
+  const relatedUsers = userIds.length ? await db.select({ id: users.id, name: users.name, whatsapp: users.whatsapp }).from(users).where(inArray(users.id, userIds)) : [];
+  const usersById = new Map(relatedUsers.map((item) => [item.id, item]));
+  return rows.map((row) => ({
+    ...row,
+    seller: usersById.get(row.negotiation.sellerId) ?? null,
+    buyer: usersById.get(row.negotiation.buyerId) ?? null,
+    perspective: row.negotiation.sellerId === userId ? "seller" as const : "buyer" as const,
+  }));
 }
 
 export async function getAllChampionships() {

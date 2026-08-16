@@ -95,6 +95,30 @@ export const reservas = mysqlTable(
 export type Reserva = typeof reservas.$inferSelect;
 export type InsertReserva = typeof reservas.$inferInsert;
 
+export const negotiations = mysqlTable(
+  "negotiations",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    reservaId: int("reservaId").notNull().unique(),
+    figurinhaId: int("figurinhaId").notNull(),
+    sellerId: int("sellerId").notNull(),
+    buyerId: int("buyerId").notNull(),
+    type: mysqlEnum("type", ["trade", "purchase"]).notNull(),
+    amount: decimal("amount", { precision: 10, scale: 2 }),
+    status: mysqlEnum("status", ["completed"]).notNull().default("completed"),
+    completedAt: timestamp("completedAt").notNull().defaultNow(),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (table) => ({
+    buyerIdx: index("negotiations_buyer_idx").on(table.buyerId),
+    sellerIdx: index("negotiations_seller_idx").on(table.sellerId),
+    completedAtIdx: index("negotiations_completed_at_idx").on(table.completedAt),
+  }),
+);
+
+export type Negotiation = typeof negotiations.$inferSelect;
+export type InsertNegotiation = typeof negotiations.$inferInsert;
+
 export const twoFactorBackupCodes = mysqlTable(
   "twoFactorBackupCodes",
   {
