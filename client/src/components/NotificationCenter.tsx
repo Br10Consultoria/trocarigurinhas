@@ -44,11 +44,29 @@ export default function NotificationCenter() {
     onError: (error) => toast.error(error.message),
   });
   const markAllReadMutation = trpc.notifications.markAllRead.useMutation({
+    onMutate: async () => {
+      await Promise.all([
+        utils.notifications.list.cancel({ limit: 30 }),
+        utils.notifications.unreadCount.cancel(),
+      ]);
+      const previousList = utils.notifications.list.getData({ limit: 30 });
+      const previousCount = utils.notifications.unreadCount.getData();
+      utils.notifications.list.setData({ limit: 30 }, (current) => current?.map((item) => ({ ...item, isRead: true })));
+      utils.notifications.unreadCount.setData(undefined, 0);
+      return { previousList, previousCount };
+    },
     onSuccess: () => {
+      toast.success("Notificações atualizadas", { description: "Todas as pendências foram marcadas como lidas." });
+    },
+    onError: (error, _input, context) => {
+      if (context?.previousList) utils.notifications.list.setData({ limit: 30 }, context.previousList);
+      if (context?.previousCount !== undefined) utils.notifications.unreadCount.setData(undefined, context.previousCount);
+      toast.error("Não foi possível atualizar as notificações", { description: error.message });
+    },
+    onSettled: () => {
       void utils.notifications.list.invalidate();
       void utils.notifications.unreadCount.invalidate();
     },
-    onError: (error) => toast.error(error.message),
   });
   const knownIds = useRef(new Set<number>());
   const initialized = useRef(false);
@@ -112,7 +130,7 @@ export default function NotificationCenter() {
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[min(380px,calc(100vw-2rem))] rounded-2xl border-slate-200 p-0 shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-slate-950">Notificações</p>
             <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
@@ -120,16 +138,26 @@ export default function NotificationCenter() {
               {liveConnected ? "Atualização em tempo real" : "Reconectando canal seguro..."}
             </p>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 rounded-lg px-2 text-xs text-blue-700 hover:bg-blue-50"
-            disabled={unreadCount === 0 || markAllReadMutation.isPending}
-            onClick={() => markAllReadMutation.mutate()}
-          >
-            {markAllReadMutation.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CheckCheck className="mr-1.5 h-3.5 w-3.5" />}
-            Marcar todas como lidas
-          </Button>
+          <div className="flex items-center justify-between gap-2 sm:justify-end">
+            {unreadCount > 0 && (
+              <span className="rounded-full bg-orange-50 px-2.5 py-1 text-[11px] font-semibold text-orange-700">
+                {unreadCount > 99 ? "99+ pendentes" : unreadCount === 1 ? "1 pendente" : `${unreadCount} pendentes`}
+              </span>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 rounded-lg border-blue-200 bg-blue-50 px-2.5 text-xs font-semibold text-blue-700 shadow-none hover:bg-blue-100 hover:text-blue-800 sm:px-3"
+              disabled={unreadCount === 0 || markAllReadMutation.isPending}
+              onClick={() => markAllReadMutation.mutate()}
+              aria-label={unreadCount > 0 ? `Marcar ${unreadCount} notificações como lidas` : "Nenhuma notificação pendente"}
+              title="Marcar todas as notificações pendentes como lidas"
+            >
+              {markAllReadMutation.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CheckCheck className="mr-1.5 h-3.5 w-3.5" />}
+              <span className="hidden sm:inline">Marcar todas como lidas</span>
+              <span className="sm:hidden">Ler todas</span>
+            </Button>
+          </div>
         </div>
         <ScrollArea className="max-h-[min(430px,70vh)]">
           <div className="p-2">

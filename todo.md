@@ -75,3 +75,16 @@ As funcionalidades de backend presentes no checkpoint foram reconstruídas e val
 - [x] Adicionar canal SSE autenticado com heartbeat e limpeza de conexões.
 - [x] Garantir que o aceite de reserva gere a notificação usando o ID real da reserva.
 - [x] Cobrir a entrega SSE e o novo contrato de reserva nos testes.
+
+
+## Leitura em massa de notificações
+
+- [x] Destacar o botão para marcar todas as notificações pendentes como lidas.
+- [x] Exibir quantidade de pendências e feedback de sucesso/erro após a ação.
+- [x] Validar responsividade, testes e sincronização no GitHub.
+
+
+## Fechamento da leitura em massa
+
+- [ ] Publicar a melhoria da central de notificações no GitHub e validar o SHA remoto após o push.
+- [ ] Salvar checkpoint final da melhoria de leitura em massa após a sincronização remota.
