@@ -54,3 +54,24 @@ As funcionalidades de backend presentes no checkpoint foram reconstruídas e val
 
 - [x] Teste de integração real sem mock, concluindo reserva e lendo o registro no histórico.
 - [x] Executar a suíte completa e publicar o teste de integração atualizado no GitHub com SHA remoto verificado.
+
+
+## Notificações de negociações
+
+- [x] Criar tabela persistente de notificações por usuário com estado lida/não lida.
+- [x] Gerar notificações quando uma troca for aceita ou finalizada.
+- [x] Criar procedures autenticadas para listar, marcar como lida e marcar todas como lidas.
+- [x] Adicionar toast visual imediato, contador e central de notificações no frontend.
+- [x] Testar, validar, publicar no GitHub e salvar checkpoint da atualização.
+
+
+## Ajuste visual identificado na validação
+
+- [x] Corrigir o overflow das abas do perfil em viewport móvel de 375px.
+
+
+## Entrega imediata de eventos
+
+- [x] Adicionar canal SSE autenticado com heartbeat e limpeza de conexões.
+- [x] Garantir que o aceite de reserva gere a notificação usando o ID real da reserva.
+- [x] Cobrir a entrega SSE e o novo contrato de reserva nos testes.

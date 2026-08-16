@@ -9,6 +9,8 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { expireReservationsHandler } from "../expireReservations";
+import { subscribeToNotificationStream } from "../notificationStream";
+import { sdk } from "./sdk";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -39,6 +41,18 @@ async function startServer() {
   registerOAuthRoutes(app);
   // Heartbeat callbacks must be mounted before the Vite/static fallthrough.
   app.post("/api/scheduled/expire-reservations", expireReservationsHandler);
+  app.get("/api/notifications/stream", async (req, res) => {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      if (!user) {
+        res.status(401).json({ message: "Autenticação necessária." });
+        return;
+      }
+      subscribeToNotificationStream(user.id, res);
+    } catch {
+      res.status(401).json({ message: "Sessão inválida." });
+    }
+  });
   // tRPC API
   app.use(
     "/api/trpc",

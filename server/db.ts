@@ -8,12 +8,14 @@ import {
   championships,
   figurinhas,
   InsertUser,
-  negotiations,
-  reservas,
+    negotiations,
+    notifications,
+    reservas,
   twoFactorBackupCodes,
   users,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { publishNotificationEvent } from "./notificationStream";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -267,8 +269,13 @@ export async function createReserva(figurinhaId: number, reservedByUserId: numbe
     const available = await tx.select({ id: figurinhas.id }).from(figurinhas).where(and(eq(figurinhas.id, figurinhaId), eq(figurinhas.status, "available"))).limit(1);
     if (!available[0]) throw new Error("FIGURINHA_UNAVAILABLE");
     await tx.update(figurinhas).set({ status: "reserved" }).where(eq(figurinhas.id, figurinhaId));
-    await tx.insert(reservas).values({ figurinhaId, reservedByUserId, ownerId, expiresAt, status: "active" });
-    return expiresAt;
+    const inserted = await tx.insert(reservas).values({ figurinhaId, reservedByUserId, ownerId, expiresAt, status: "active" });
+    const insertId = Number((inserted as { insertId?: number }).insertId ?? 0);
+    const created = insertId > 0
+      ? { id: insertId }
+      : (await tx.select({ id: reservas.id }).from(reservas).where(and(eq(reservas.figurinhaId, figurinhaId), eq(reservas.reservedByUserId, reservedByUserId), eq(reservas.ownerId, ownerId), eq(reservas.status, "active"))).orderBy(desc(reservas.id)).limit(1))[0];
+    if (!created) throw new Error("RESERVA_NOT_CREATED");
+    return { reservationId: created.id, expiresAt };
   });
 }
 
@@ -381,4 +388,109 @@ export async function logActivity(userId: number | null, action: string, descrip
   const db = await getDb();
   if (!db) return;
   await db.insert(activityLogs).values({ userId, action, description, entityType, entityId });
+}
+
+
+export type NotificationKind = "trade_accepted" | "trade_completed";
+
+export async function createNotification(input: {
+  userId: number;
+  kind: NotificationKind;
+  title: string;
+  message: string;
+  reservationId?: number;
+  negotiationId?: number;
+}) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const identityFilter = input.reservationId !== undefined
+    ? eq(notifications.reservationId, input.reservationId)
+    : input.negotiationId !== undefined
+      ? eq(notifications.negotiationId, input.negotiationId)
+      : undefined;
+  if (identityFilter) {
+    const existing = await db.select({ id: notifications.id })
+      .from(notifications)
+      .where(and(eq(notifications.userId, input.userId), eq(notifications.kind, input.kind), identityFilter))
+      .limit(1);
+    if (existing[0]) return existing[0];
+  }
+  const inserted = await db.insert(notifications).values({
+    userId: input.userId,
+    kind: input.kind,
+    title: input.title,
+    message: input.message,
+    reservationId: input.reservationId,
+    negotiationId: input.negotiationId,
+  });
+  const created = { id: Number((inserted as { insertId?: number }).insertId ?? 0) };
+  publishNotificationEvent(input.userId, {
+    id: created.id > 0 ? created.id : undefined,
+    kind: input.kind,
+    title: input.title,
+    message: input.message,
+  });
+  return created;
+}
+
+export async function createReservationAcceptedNotifications(reservationId: number) {
+  const result = await getReservaById(reservationId);
+  if (!result?.card || !result.owner) return;
+  const cardLabel = `${result.card.cardNumber} · ${result.card.playerName}`;
+  return createNotification({
+    userId: result.reservation.ownerId,
+    kind: "trade_accepted",
+    title: "Reserva aceita",
+    message: `Um colecionador reservou ${cardLabel}. Entre em contato pelo WhatsApp para combinar a troca.`,
+    reservationId,
+  });
+}
+
+export async function createNegotiationCompletedNotifications(reservationId: number, negotiationId: number) {
+  const result = await getReservaById(reservationId);
+  if (!result?.card) return;
+  const cardLabel = `${result.card.cardNumber} · ${result.card.playerName}`;
+  const recipients = [result.reservation.ownerId, result.reservation.reservedByUserId];
+  await Promise.all(recipients.map((userId) => createNotification({
+    userId,
+    kind: "trade_completed",
+    title: "Negociação finalizada",
+    message: `A negociação de ${cardLabel} foi marcada como concluída.`,
+    reservationId,
+    negotiationId,
+  })));
+}
+
+export async function getNotificationsForUser(userId: number, limit = 30) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(notifications)
+    .where(eq(notifications.userId, userId))
+    .orderBy(desc(notifications.createdAt))
+    .limit(Math.min(Math.max(limit, 1), 50));
+}
+
+export async function getUnreadNotificationCount(userId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  const rows = await db.select({ id: notifications.id })
+    .from(notifications)
+    .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
+  return rows.length;
+}
+
+export async function markNotificationAsRead(userId: number, notificationId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(notifications)
+    .set({ isRead: true })
+    .where(and(eq(notifications.id, notificationId), eq(notifications.userId, userId)));
+}
+
+export async function markAllNotificationsAsRead(userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(notifications)
+    .set({ isRead: true })
+    .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
 }

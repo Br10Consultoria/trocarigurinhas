@@ -151,9 +151,10 @@ export const appRouter = router({
       if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Figurinha não encontrada." });
       if (card.card.userId === ctx.user!.id) throw new TRPCError({ code: "BAD_REQUEST", message: "Você não pode reservar a própria figurinha." });
       try {
-        const expiresAt = await db.createReserva(input.figurinhaId, ctx.user!.id, card.card.userId);
-        await db.logActivity(ctx.user!.id, "RESERVATION_CREATED", `Reserva da figurinha ${input.figurinhaId}`, "reserva", input.figurinhaId);
-        return { success: true, expiresAt };
+        const reservation = await db.createReserva(input.figurinhaId, ctx.user!.id, card.card.userId);
+        await db.logActivity(ctx.user!.id, "RESERVATION_CREATED", `Reserva da figurinha ${input.figurinhaId}`, "reserva", reservation.reservationId);
+        await db.createReservationAcceptedNotifications(reservation.reservationId);
+        return { success: true, expiresAt: reservation.expiresAt };
       } catch (error) {
         if (error instanceof Error && error.message === "FIGURINHA_UNAVAILABLE") throw new TRPCError({ code: "CONFLICT", message: "Esta figurinha já foi reservada por outra pessoa." });
         throw error;
@@ -181,6 +182,7 @@ export const appRouter = router({
       try {
         const negotiation = await db.completeReserva(input.id, input.type, input.amount);
         await db.logActivity(ctx.user!.id, "RESERVATION_COMPLETED", `${input.type === "purchase" ? "Compra" : "Troca"} concluída na reserva ${input.id}`, "negotiation", negotiation?.id);
+        if (negotiation?.id) await db.createNegotiationCompletedNotifications(input.id, negotiation.id);
         return { success: true, negotiationId: negotiation?.id };
       } catch (error) {
         if (error instanceof Error && error.message === "RESERVA_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND" });
@@ -192,6 +194,19 @@ export const appRouter = router({
 
   negotiations: router({
     history: protectedProcedure.input(z.object({ type: z.enum(["trade", "purchase"]).optional() }).optional()).query(({ ctx, input }) => db.getNegotiationHistoryForUser(ctx.user!.id, input?.type)),
+  }),
+
+  notifications: router({
+    list: protectedProcedure.input(z.object({ limit: z.number().int().min(1).max(50).optional() }).optional()).query(({ ctx, input }) => db.getNotificationsForUser(ctx.user!.id, input?.limit)),
+    unreadCount: protectedProcedure.query(({ ctx }) => db.getUnreadNotificationCount(ctx.user!.id)),
+    markRead: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      await db.markNotificationAsRead(ctx.user!.id, input.id);
+      return { success: true };
+    }),
+    markAllRead: protectedProcedure.mutation(async ({ ctx }) => {
+      await db.markAllNotificationsAsRead(ctx.user!.id);
+      return { success: true };
+    }),
   }),
 
   admin: router({
@@ -221,6 +236,7 @@ export const appRouter = router({
       try {
         const negotiation = await db.completeReserva(input.id, input.type, input.amount);
         await db.logActivity(ctx.user!.id, "ADMIN_RESERVATION_COMPLETED", `${input.type === "purchase" ? "Compra" : "Troca"} concluída na reserva ${input.id}`, "negotiation", negotiation?.id);
+        if (negotiation?.id) await db.createNegotiationCompletedNotifications(input.id, negotiation.id);
         return { success: true, negotiationId: negotiation?.id };
       } catch (error) {
         if (error instanceof Error && error.message === "RESERVA_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND" });

@@ -22,6 +22,13 @@
       "when": 1786884803758,
       "tag": "0002_marvelous_toad",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1786886039366,
+      "tag": "0003_moaning_guardian",
+      "breakpoints": true
     }
   ]
 }

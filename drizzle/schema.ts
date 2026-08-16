@@ -163,4 +163,27 @@ export const activityLogs = mysqlTable(
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type InsertActivityLog = typeof activityLogs.$inferInsert;
 
+export const notifications = mysqlTable(
+  "notifications",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    kind: mysqlEnum("kind", ["trade_accepted", "trade_completed"]).notNull(),
+    title: varchar("title", { length: 180 }).notNull(),
+    message: text("message").notNull(),
+    reservationId: int("reservationId"),
+    negotiationId: int("negotiationId"),
+    isRead: boolean("isRead").notNull().default(false),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index("notifications_user_idx").on(table.userId),
+    unreadIdx: index("notifications_unread_idx").on(table.userId, table.isRead),
+    createdAtIdx: index("notifications_created_at_idx").on(table.createdAt),
+  }),
+);
+
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = typeof notifications.$inferInsert;
+
 export const relations = undefined;

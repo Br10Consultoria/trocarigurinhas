@@ -7,11 +7,12 @@ const mocks = vi.hoisted(() => ({
   getReservaById: vi.fn(),
   getNegotiationHistoryForUser: vi.fn(),
   logActivity: vi.fn(),
+  createNegotiationCompletedNotifications: vi.fn(),
 }));
 
 vi.mock("./db", () => mocks);
 
-const { completeReserva, getReservaById, getNegotiationHistoryForUser, logActivity } = mocks;
+const { completeReserva, getReservaById, getNegotiationHistoryForUser, logActivity, createNegotiationCompletedNotifications } = mocks;
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
@@ -66,6 +67,7 @@ describe("reservas.complete", () => {
     expect(result).toEqual({ success: true, negotiationId: 42 });
     expect(completeReserva).toHaveBeenCalledWith(7, "purchase", 12.5);
     expect(logActivity).toHaveBeenCalledWith(1, "RESERVATION_COMPLETED", "Compra concluída na reserva 7", "negotiation", 42);
+    expect(createNegotiationCompletedNotifications).toHaveBeenCalledWith(7, 42);
 
     const history = await caller.negotiations.history({ type: "purchase" });
     expect(history).toHaveLength(1);
