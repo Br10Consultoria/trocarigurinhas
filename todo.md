@@ -101,5 +101,4 @@ As funcionalidades de backend presentes no checkpoint foram reconstruídas e val
 - [x] Implementar filtro por tipo com contadores e estado vazio específico.
 - [x] Preservar SSE, leitura em massa e responsividade nos filtros.
 - [x] Testar a suíte completa de notificações e tipos.
-- [ ] Publicar no GitHub e validar o commit remoto.
-- [ ] Salvar checkpoint da atualização.
+- [ ] Salvar checkpoint da atualização de filtros de notificação.
