@@ -20,7 +20,7 @@ As funcionalidades de backend presentes no checkpoint foram reconstruídas e val
 
 - [x] Exibir e gerenciar figurinhas e reservas ativas no painel administrativo.
 - [x] Tornar o 2FA obrigatório por sessão para liberar operações administrativas após o login.
-- [ ] Registrar o job Heartbeat de expiração automática após o próximo deploy; o endpoint já está montado.
+- [x] Registrar o job Heartbeat de expiração automática após o deploy; task UID `EJY68STFBrMhnEy9rjPD26`, execução horária.
 - [x] Separar claramente HTTPS gerenciado do Manus e o guia opcional de Nginx/SSL próprio.
 
 
