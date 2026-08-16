@@ -38,6 +38,7 @@ describe("notificationStream", () => {
     publishNotificationEvent(901, {
       id: 55,
       kind: "trade_completed",
+      category: "trade",
       title: "Negociação finalizada",
       message: "A troca foi finalizada.",
     });

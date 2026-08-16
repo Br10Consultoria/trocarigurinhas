@@ -5,6 +5,7 @@ const { mockedDb } = vi.hoisted(() => ({
   mockedDb: {
     getNotificationsForUser: vi.fn(),
     getUnreadNotificationCount: vi.fn(),
+    getUnreadNotificationCounts: vi.fn(),
     markNotificationAsRead: vi.fn(),
     markAllNotificationsAsRead: vi.fn(),
     getFigurinhaById: vi.fn(),
@@ -52,18 +53,20 @@ describe("notifications procedures", () => {
 
   it("lists unread count and marks one notification as read", async () => {
     mockedDb.getNotificationsForUser.mockResolvedValueOnce([
-      { id: 4, userId: 10, kind: "trade_accepted", title: "Reserva aceita", message: "Contato", isRead: false, createdAt: new Date(), reservationId: 8, negotiationId: null },
+      { id: 4, userId: 10, kind: "trade_accepted", category: "trade", title: "Reserva aceita", message: "Contato", isRead: false, createdAt: new Date(), reservationId: 8, negotiationId: null },
     ]);
     mockedDb.getUnreadNotificationCount.mockResolvedValueOnce(1);
     mockedDb.markNotificationAsRead.mockResolvedValueOnce(undefined);
 
     const caller = appRouter.createCaller(createContext());
-    const list = await caller.notifications.list({ limit: 20 });
-    const count = await caller.notifications.unreadCount();
+    const list = await caller.notifications.list({ limit: 20, category: "trade" });
+    const count = await caller.notifications.unreadCount({ category: "trade" });
     const result = await caller.notifications.markRead({ id: 4 });
 
     expect(list).toHaveLength(1);
     expect(count).toBe(1);
+    expect(mockedDb.getNotificationsForUser).toHaveBeenCalledWith(10, 20, "trade");
+    expect(mockedDb.getUnreadNotificationCount).toHaveBeenCalledWith(10, "trade");
     expect(result).toEqual({ success: true });
     expect(mockedDb.markNotificationAsRead).toHaveBeenCalledWith(10, 4);
   });
@@ -96,6 +99,6 @@ describe("notification triggers", () => {
     const result = await caller.reservas.complete({ id: 8, type: "trade" });
 
     expect(result).toEqual({ success: true, negotiationId: 77 });
-    expect(mockedDb.createNegotiationCompletedNotifications).toHaveBeenCalledWith(8, 77);
+    expect(mockedDb.createNegotiationCompletedNotifications).toHaveBeenCalledWith(8, 77, "trade");
   });
 });

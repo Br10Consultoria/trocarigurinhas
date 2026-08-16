@@ -391,11 +391,13 @@ export async function logActivity(userId: number | null, action: string, descrip
 }
 
 
-export type NotificationKind = "trade_accepted" | "trade_completed";
+export type NotificationKind = "trade_accepted" | "trade_completed" | "system_notice";
+export type NotificationCategory = "trade" | "purchase" | "system";
 
 export async function createNotification(input: {
   userId: number;
   kind: NotificationKind;
+  category: NotificationCategory;
   title: string;
   message: string;
   reservationId?: number;
@@ -418,6 +420,7 @@ export async function createNotification(input: {
   const inserted = await db.insert(notifications).values({
     userId: input.userId,
     kind: input.kind,
+    category: input.category,
     title: input.title,
     message: input.message,
     reservationId: input.reservationId,
@@ -427,6 +430,7 @@ export async function createNotification(input: {
   publishNotificationEvent(input.userId, {
     id: created.id > 0 ? created.id : undefined,
     kind: input.kind,
+    category: input.category,
     title: input.title,
     message: input.message,
   });
@@ -440,43 +444,60 @@ export async function createReservationAcceptedNotifications(reservationId: numb
   return createNotification({
     userId: result.reservation.ownerId,
     kind: "trade_accepted",
+    category: "trade",
     title: "Reserva aceita",
     message: `Um colecionador reservou ${cardLabel}. Entre em contato pelo WhatsApp para combinar a troca.`,
     reservationId,
   });
 }
 
-export async function createNegotiationCompletedNotifications(reservationId: number, negotiationId: number) {
+export async function createNegotiationCompletedNotifications(reservationId: number, negotiationId: number, category: "trade" | "purchase") {
   const result = await getReservaById(reservationId);
   if (!result?.card) return;
   const cardLabel = `${result.card.cardNumber} · ${result.card.playerName}`;
   const recipients = [result.reservation.ownerId, result.reservation.reservedByUserId];
+  const isPurchase = category === "purchase";
   await Promise.all(recipients.map((userId) => createNotification({
     userId,
     kind: "trade_completed",
-    title: "Negociação finalizada",
-    message: `A negociação de ${cardLabel} foi marcada como concluída.`,
+    category,
+    title: isPurchase ? "Compra finalizada" : "Troca finalizada",
+    message: `${isPurchase ? "A compra" : "A troca"} de ${cardLabel} foi marcada como concluída.`,
     reservationId,
     negotiationId,
   })));
 }
 
-export async function getNotificationsForUser(userId: number, limit = 30) {
+export async function getNotificationsForUser(userId: number, limit = 30, category?: NotificationCategory) {
   const db = await getDb();
   if (!db) return [];
+  const filters = [eq(notifications.userId, userId)];
+  if (category) filters.push(eq(notifications.category, category));
   return db.select().from(notifications)
-    .where(eq(notifications.userId, userId))
+    .where(and(...filters))
     .orderBy(desc(notifications.createdAt))
     .limit(Math.min(Math.max(limit, 1), 50));
 }
 
-export async function getUnreadNotificationCount(userId: number) {
+export async function getUnreadNotificationCount(userId: number, category?: NotificationCategory) {
   const db = await getDb();
   if (!db) return 0;
+  const filters = [eq(notifications.userId, userId), eq(notifications.isRead, false)];
+  if (category) filters.push(eq(notifications.category, category));
   const rows = await db.select({ id: notifications.id })
     .from(notifications)
-    .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
+    .where(and(...filters));
   return rows.length;
+}
+
+export async function getUnreadNotificationCounts(userId: number) {
+  const [all, trade, purchase, system] = await Promise.all([
+    getUnreadNotificationCount(userId),
+    getUnreadNotificationCount(userId, "trade"),
+    getUnreadNotificationCount(userId, "purchase"),
+    getUnreadNotificationCount(userId, "system"),
+  ]);
+  return { all, trade, purchase, system };
 }
 
 export async function markNotificationAsRead(userId: number, notificationId: number) {
@@ -487,10 +508,12 @@ export async function markNotificationAsRead(userId: number, notificationId: num
     .where(and(eq(notifications.id, notificationId), eq(notifications.userId, userId)));
 }
 
-export async function markAllNotificationsAsRead(userId: number) {
+export async function markAllNotificationsAsRead(userId: number, category?: NotificationCategory) {
   const db = await getDb();
   if (!db) return;
+  const filters = [eq(notifications.userId, userId), eq(notifications.isRead, false)];
+  if (category) filters.push(eq(notifications.category, category));
   await db.update(notifications)
     .set({ isRead: true })
-    .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
+    .where(and(...filters));
 }

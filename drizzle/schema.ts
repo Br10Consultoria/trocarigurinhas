@@ -168,7 +168,8 @@ export const notifications = mysqlTable(
   {
     id: int("id").autoincrement().primaryKey(),
     userId: int("userId").notNull(),
-    kind: mysqlEnum("kind", ["trade_accepted", "trade_completed"]).notNull(),
+    kind: mysqlEnum("kind", ["trade_accepted", "trade_completed", "system_notice"]).notNull(),
+    category: mysqlEnum("category", ["trade", "purchase", "system"]).notNull().default("system"),
     title: varchar("title", { length: 180 }).notNull(),
     message: text("message").notNull(),
     reservationId: int("reservationId"),
@@ -179,6 +180,7 @@ export const notifications = mysqlTable(
   (table) => ({
     userIdx: index("notifications_user_idx").on(table.userId),
     unreadIdx: index("notifications_unread_idx").on(table.userId, table.isRead),
+    categoryIdx: index("notifications_category_idx").on(table.userId, table.category),
     createdAtIdx: index("notifications_created_at_idx").on(table.createdAt),
   }),
 );

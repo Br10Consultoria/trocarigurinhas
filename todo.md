@@ -93,3 +93,13 @@ As funcionalidades de backend presentes no checkpoint foram reconstruídas e val
 ## Checkpoint pós-publicação
 
 - [x] Salvar um novo checkpoint após a melhoria de leitura em massa já sincronizada no GitHub, garantindo correspondência com o commit remoto `f66ef95`.
+
+
+## Filtros por tipo de notificação
+
+- [x] Adicionar categorias de troca, compra e aviso do sistema no modelo de notificação.
+- [x] Implementar filtro por tipo com contadores e estado vazio específico.
+- [x] Preservar SSE, leitura em massa e responsividade nos filtros.
+- [x] Testar a suíte completa de notificações e tipos.
+- [ ] Publicar no GitHub e validar o commit remoto.
+- [ ] Salvar checkpoint da atualização.

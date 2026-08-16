@@ -2,7 +2,8 @@ import type { Response } from "express";
 
 export type NotificationStreamEvent = {
   id?: number;
-  kind: "trade_accepted" | "trade_completed";
+  kind: "trade_accepted" | "trade_completed" | "system_notice";
+  category: "trade" | "purchase" | "system";
   title: string;
   message: string;
 };

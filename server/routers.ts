@@ -182,7 +182,7 @@ export const appRouter = router({
       try {
         const negotiation = await db.completeReserva(input.id, input.type, input.amount);
         await db.logActivity(ctx.user!.id, "RESERVATION_COMPLETED", `${input.type === "purchase" ? "Compra" : "Troca"} concluída na reserva ${input.id}`, "negotiation", negotiation?.id);
-        if (negotiation?.id) await db.createNegotiationCompletedNotifications(input.id, negotiation.id);
+        if (negotiation?.id) await db.createNegotiationCompletedNotifications(input.id, negotiation.id, input.type);
         return { success: true, negotiationId: negotiation?.id };
       } catch (error) {
         if (error instanceof Error && error.message === "RESERVA_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND" });
@@ -197,14 +197,22 @@ export const appRouter = router({
   }),
 
   notifications: router({
-    list: protectedProcedure.input(z.object({ limit: z.number().int().min(1).max(50).optional() }).optional()).query(({ ctx, input }) => db.getNotificationsForUser(ctx.user!.id, input?.limit)),
-    unreadCount: protectedProcedure.query(({ ctx }) => db.getUnreadNotificationCount(ctx.user!.id)),
+    list: protectedProcedure.input(z.object({
+      limit: z.number().int().min(1).max(50).optional(),
+      category: z.enum(["trade", "purchase", "system"]).optional(),
+    }).optional()).query(({ ctx, input }) => db.getNotificationsForUser(ctx.user!.id, input?.limit, input?.category)),
+    unreadCount: protectedProcedure.input(z.object({
+      category: z.enum(["trade", "purchase", "system"]).optional(),
+    }).optional()).query(({ ctx, input }) => db.getUnreadNotificationCount(ctx.user!.id, input?.category)),
+    unreadCounts: protectedProcedure.query(({ ctx }) => db.getUnreadNotificationCounts(ctx.user!.id)),
     markRead: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       await db.markNotificationAsRead(ctx.user!.id, input.id);
       return { success: true };
     }),
-    markAllRead: protectedProcedure.mutation(async ({ ctx }) => {
-      await db.markAllNotificationsAsRead(ctx.user!.id);
+    markAllRead: protectedProcedure.input(z.object({
+      category: z.enum(["trade", "purchase", "system"]).optional(),
+    }).optional()).mutation(async ({ ctx, input }) => {
+      await db.markAllNotificationsAsRead(ctx.user!.id, input?.category);
       return { success: true };
     }),
   }),
@@ -236,7 +244,7 @@ export const appRouter = router({
       try {
         const negotiation = await db.completeReserva(input.id, input.type, input.amount);
         await db.logActivity(ctx.user!.id, "ADMIN_RESERVATION_COMPLETED", `${input.type === "purchase" ? "Compra" : "Troca"} concluída na reserva ${input.id}`, "negotiation", negotiation?.id);
-        if (negotiation?.id) await db.createNegotiationCompletedNotifications(input.id, negotiation.id);
+        if (negotiation?.id) await db.createNegotiationCompletedNotifications(input.id, negotiation.id, input.type);
         return { success: true, negotiationId: negotiation?.id };
       } catch (error) {
         if (error instanceof Error && error.message === "RESERVA_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND" });
