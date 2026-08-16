@@ -26,5 +26,5 @@ As funcionalidades de backend presentes no checkpoint foram reconstruídas e val
 
 ## Política de entrega
 
-- [ ] Enviar a versão atual ao GitHub e verificar o commit remoto.
-- [ ] Sincronizar obrigatoriamente futuras atualizações validadas com o repositório GitHub antes da entrega ao usuário.
+- [x] Enviar a versão atual ao GitHub e verificar o commit remoto.
+- [x] Sincronizar obrigatoriamente futuras atualizações validadas com o repositório GitHub antes da entrega ao usuário.
