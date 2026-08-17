@@ -109,4 +109,9 @@ As funcionalidades de backend presentes no checkpoint foram reconstruídas e val
 - [x] Atualizar a consulta de notificações para expor o `reservationId` e indicar propostas ativas.
 - [x] Adicionar ações rápidas que aceitem ou recusem a proposta sem concluir a negociação automaticamente.
 - [x] Cobrir os novos cenários com testes.
-- [ ] Executar o build completo e salvar o checkpoint da nova funcionalidade.
+- [x] Executar o build completo e salvar o checkpoint da nova funcionalidade.
+
+## Confirmação para recusa de propostas
+
+- [x] Adicionar modal de confirmação (AlertDialog) ao clicar em Recusar na central de notificações.
+- [x] Validar o fluxo de confirmação e cancelamento do modal na interface e garantir testes e build.

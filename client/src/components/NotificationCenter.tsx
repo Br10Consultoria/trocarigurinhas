@@ -16,6 +16,16 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -28,6 +38,12 @@ type NotificationStreamEvent = {
   category: NotificationCategory;
   title: string;
   message: string;
+};
+
+type PendingDecline = {
+  reservationId: number;
+  notificationId: number;
+  title: string;
 };
 
 const filterOptions: Array<{ value: NotificationFilter; label: string }> = [
@@ -116,9 +132,11 @@ export default function NotificationCenter() {
     onError: (error) => toast.error(error.message),
   });
   const [resolvedProposalIds, setResolvedProposalIds] = useState<Set<number>>(() => new Set());
+  const [pendingDecline, setPendingDecline] = useState<PendingDecline | null>(null);
   const respondProposalMutation = trpc.reservas.respondProposal.useMutation({
     onSuccess: (result, variables) => {
       setResolvedProposalIds((current) => new Set(current).add(variables.reservationId));
+      setPendingDecline(null);
       toast.success(result.status === "accepted" ? "Proposta aceita" : "Proposta recusada", {
         description: result.status === "accepted" ? "O proponente foi avisado. A reserva continua ativa para concluir a troca em até 24 horas." : "O proponente foi avisado sobre a recusa.",
       });
@@ -346,7 +364,7 @@ export default function NotificationCenter() {
                         disabled={respondProposalMutation.isPending}
                         onClick={(event) => {
                           event.stopPropagation();
-                          respondProposalMutation.mutate({ reservationId: item.reservationId!, notificationId: item.id, action: "decline" });
+                          setPendingDecline({ reservationId: item.reservationId!, notificationId: item.id, title: item.title });
                         }}
                         aria-label={`Recusar proposta da notificação ${item.id}`}
                       >
@@ -360,6 +378,40 @@ export default function NotificationCenter() {
             })}
           </div>
         </ScrollArea>
+        <AlertDialog
+          open={pendingDecline !== null}
+          onOpenChange={(open) => {
+            if (!open && !respondProposalMutation.isPending) setPendingDecline(null);
+          }}
+        >
+          <AlertDialogContent className="rounded-2xl border-slate-200 sm:max-w-md">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Recusar esta proposta?</AlertDialogTitle>
+              <AlertDialogDescription>
+                A proposta “{pendingDecline?.title ?? "de troca"}” será recusada e o proponente será avisado. Esta ação não poderá ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={respondProposalMutation.isPending}>Voltar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-rose-600 text-white hover:bg-rose-700 focus:ring-rose-500"
+                disabled={respondProposalMutation.isPending || pendingDecline === null}
+                onClick={(event) => {
+                  event.preventDefault();
+                  if (!pendingDecline) return;
+                  respondProposalMutation.mutate({
+                    reservationId: pendingDecline.reservationId,
+                    notificationId: pendingDecline.notificationId,
+                    action: "decline",
+                  });
+                }}
+              >
+                {respondProposalMutation.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <X className="mr-1.5 h-4 w-4" />}
+                Confirmar recusa
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </PopoverContent>
     </Popover>
   );
