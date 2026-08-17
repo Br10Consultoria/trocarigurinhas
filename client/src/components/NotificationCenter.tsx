@@ -99,6 +99,7 @@ export default function NotificationCenter() {
   const [activeFilter, setActiveFilter] = useState<NotificationFilter>("all");
   const [tradeStatusFilter, setTradeStatusFilter] = useState<"all" | "pending" | "accepted" | "declined">("all");
   const [championshipFilter, setChampionshipFilter] = useState<string>("all");
+  const [tradeSortBy, setTradeSortBy] = useState<"recent" | "oldest" | "cardId">("recent");
   const [liveConnected, setLiveConnected] = useState(false);
   const listInput = useMemo(
     () => ({
@@ -250,7 +251,7 @@ export default function NotificationCenter() {
   }, [notificationsRaw]);
 
   const notifications = useMemo(() => {
-    return notificationsRaw.filter((item: any) => {
+    const filtered = notificationsRaw.filter((item: any) => {
       const isTrade = item.category === "trade" && item.reservationId !== null;
       if (activeFilter === "trade") {
         if (tradeStatusFilter !== "all" && isTrade) {
@@ -262,7 +263,20 @@ export default function NotificationCenter() {
       }
       return true;
     });
-  }, [notificationsRaw, activeFilter, tradeStatusFilter, championshipFilter]);
+
+    if (activeFilter === "trade") {
+      return [...filtered].sort((a: any, b: any) => {
+        const timeA = new Date(a.createdAt).getTime();
+        const timeB = new Date(b.createdAt).getTime();
+        if (tradeSortBy === "recent") return timeB - timeA;
+        if (tradeSortBy === "oldest") return timeA - timeB;
+        if (tradeSortBy === "cardId") return (a.cardId ?? 0) - (b.cardId ?? 0);
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [notificationsRaw, activeFilter, tradeStatusFilter, championshipFilter, tradeSortBy]);
 
   const tradeEmptyMessage = useMemo(() => {
     if (activeFilter !== "trade" || tradeStatusFilter === "all") return null;
@@ -389,6 +403,27 @@ export default function NotificationCenter() {
                   ))}
                 </div>
               )}
+              <div className="flex items-center gap-1.5 pt-0.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Ordenar:</span>
+                {[
+                  { value: "recent", label: "Mais recentes" },
+                  { value: "oldest", label: "Mais antigas" },
+                  { value: "cardId", label: "Nº Figurinha" },
+                ].map((sort) => (
+                  <button
+                    key={sort.value}
+                    type="button"
+                    onClick={() => setTradeSortBy(sort.value as any)}
+                    className={`rounded-md px-2 py-0.5 text-[10px] font-semibold transition ${
+                      tradeSortBy === sort.value
+                        ? "bg-purple-100 text-purple-800"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    {sort.label}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           <div className="flex justify-end">

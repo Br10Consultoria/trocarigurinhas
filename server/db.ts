@@ -485,6 +485,7 @@ export async function getNotificationsForUser(userId: number, limit = 30, catego
       proposalStatus: reservas.proposalStatus,
       reservationOwnerId: reservas.ownerId,
       championshipName: championships.name,
+      cardId: figurinhas.id,
     })
     .from(notifications)
     .leftJoin(reservas, eq(notifications.reservationId, reservas.id))
@@ -493,11 +494,12 @@ export async function getNotificationsForUser(userId: number, limit = 30, catego
     .where(and(...filters))
     .orderBy(desc(notifications.createdAt))
     .limit(Math.min(Math.max(limit, 1), 50));
-  return rows.map(({ notification, reservationStatus, proposalStatus, reservationOwnerId, championshipName }) => ({
+  return rows.map(({ notification, reservationStatus, proposalStatus, reservationOwnerId, championshipName, cardId }) => ({
     ...notification,
     reservationStatus: reservationStatus ?? null,
     proposalStatus: proposalStatus ?? null,
     championship: championshipName ?? null,
+    cardId: cardId ?? 0,
     actionAvailable: notification.kind === "trade_accepted"
       && notification.category === "trade"
       && notification.reservationId !== null

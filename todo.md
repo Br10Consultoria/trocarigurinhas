@@ -26,3 +26,9 @@
 - [x] Incluir o campeonato/álbum associado na consulta de notificações de troca no backend.
 - [x] Adicionar um seletor de campeonato/álbum na aba Trocas da central.
 - [x] Testar, validar build e salvar checkpoint.
+
+## Ordenação na aba Trocas
+
+- [x] Incluir contador ou id da figurinha/quantidade associada na consulta de notificações de troca no backend.
+- [x] Adicionar seletor de ordenação (Mais recentes, Mais antigas, Quantidade) na aba Trocas da central.
+- [x] Testar, validar build e salvar checkpoint.
