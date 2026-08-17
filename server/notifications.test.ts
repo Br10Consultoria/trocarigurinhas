@@ -8,6 +8,9 @@ const { mockedDb } = vi.hoisted(() => ({
     getUnreadNotificationCounts: vi.fn(),
     markNotificationAsRead: vi.fn(),
     markAllNotificationsAsRead: vi.fn(),
+    setReservaStatus: vi.fn(),
+    setReservaProposalStatus: vi.fn(),
+    createNotification: vi.fn(),
     getFigurinhaById: vi.fn(),
     createReserva: vi.fn(),
     logActivity: vi.fn(),
@@ -84,6 +87,65 @@ describe("notification triggers", () => {
 
     expect(result.success).toBe(true);
     expect(mockedDb.createReservationAcceptedNotifications).toHaveBeenCalledWith(8);
+  });
+
+  it("accepts a trade proposal from the notification center", async () => {
+    mockedDb.getReservaById.mockResolvedValueOnce({
+      reservation: { id: 8, ownerId: 20, reservedByUserId: 10, status: "active" },
+      card: { cardNumber: "A-01", playerName: "Jogador" },
+    });
+    mockedDb.setReservaProposalStatus.mockResolvedValueOnce(undefined);
+    mockedDb.logActivity.mockResolvedValueOnce(undefined);
+    mockedDb.createNotification.mockResolvedValueOnce({ id: 102 });
+    mockedDb.markNotificationAsRead.mockResolvedValueOnce(undefined);
+
+    const caller = appRouter.createCaller(createContext(20));
+    const result = await caller.reservas.respondProposal({ reservationId: 8, notificationId: 4, action: "accept" });
+
+    expect(result).toEqual({ success: true, status: "accepted" });
+    expect(mockedDb.setReservaProposalStatus).toHaveBeenCalledWith(8, "accepted");
+    expect(mockedDb.createNotification).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 10,
+      kind: "trade_accepted",
+      category: "trade",
+      reservationId: 8,
+    }));
+    expect(mockedDb.completeReserva).not.toHaveBeenCalled();
+    expect(mockedDb.markNotificationAsRead).toHaveBeenCalledWith(20, 4);
+  });
+
+  it("declines a trade proposal and notifies the requester", async () => {
+    mockedDb.getReservaById.mockResolvedValueOnce({
+      reservation: { id: 9, ownerId: 20, reservedByUserId: 10, status: "active" },
+      card: { cardNumber: "B-02", playerName: "Outra Jogadora" },
+    });
+    mockedDb.setReservaStatus.mockResolvedValueOnce(undefined);
+    mockedDb.logActivity.mockResolvedValueOnce(undefined);
+    mockedDb.createNotification.mockResolvedValueOnce({ id: 101 });
+    mockedDb.markNotificationAsRead.mockResolvedValueOnce(undefined);
+
+    const caller = appRouter.createCaller(createContext(20));
+    const result = await caller.reservas.respondProposal({ reservationId: 9, notificationId: 5, action: "decline" });
+
+    expect(result).toEqual({ success: true, status: "declined" });
+    expect(mockedDb.setReservaStatus).toHaveBeenCalledWith(9, "cancelled");
+    expect(mockedDb.createNotification).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 10,
+      kind: "system_notice",
+      category: "trade",
+      reservationId: 9,
+    }));
+    expect(mockedDb.markNotificationAsRead).toHaveBeenCalledWith(20, 5);
+  });
+
+  it("does not allow the requester to answer their own proposal", async () => {
+    mockedDb.getReservaById.mockResolvedValueOnce({
+      reservation: { id: 10, ownerId: 20, reservedByUserId: 10, status: "active" },
+      card: { cardNumber: "C-03", playerName: "Jogador" },
+    });
+
+    const caller = appRouter.createCaller(createContext(10));
+    await expect(caller.reservas.respondProposal({ reservationId: 10, action: "accept" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("creates completion notifications after finalizing a reservation", async () => {

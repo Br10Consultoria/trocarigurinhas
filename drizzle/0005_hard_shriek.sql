@@ -1,0 +1,1 @@
+ALTER TABLE `reservas` ADD `proposalStatus` enum('pending','accepted') DEFAULT 'pending' NOT NULL;

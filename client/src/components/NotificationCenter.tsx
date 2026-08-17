@@ -1,6 +1,7 @@
 import {
   ArrowLeftRight,
   Bell,
+  Check,
   CheckCheck,
   Circle,
   Inbox,
@@ -8,6 +9,7 @@ import {
   Radio,
   ShieldAlert,
   ShoppingBag,
+  X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -112,6 +114,20 @@ export default function NotificationCenter() {
       void utils.notifications.unreadCounts.invalidate();
     },
     onError: (error) => toast.error(error.message),
+  });
+  const [resolvedProposalIds, setResolvedProposalIds] = useState<Set<number>>(() => new Set());
+  const respondProposalMutation = trpc.reservas.respondProposal.useMutation({
+    onSuccess: (result, variables) => {
+      setResolvedProposalIds((current) => new Set(current).add(variables.reservationId));
+      toast.success(result.status === "accepted" ? "Proposta aceita" : "Proposta recusada", {
+        description: result.status === "accepted" ? "O proponente foi avisado. A reserva continua ativa para concluir a troca em até 24 horas." : "O proponente foi avisado sobre a recusa.",
+      });
+      void utils.notifications.list.invalidate();
+      void utils.notifications.unreadCount.invalidate();
+      void utils.notifications.unreadCounts.invalidate();
+      void utils.reservas.mine.invalidate();
+    },
+    onError: (error) => toast.error("Não foi possível responder à proposta", { description: error.message }),
   });
   const markAllReadMutation = trpc.notifications.markAllRead.useMutation({
     onMutate: async (input) => {
@@ -284,22 +300,64 @@ export default function NotificationCenter() {
               <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin text-blue-600" />Carregando notificações...</div>
             ) : notifications.length === 0 ? (
               <div className="flex flex-col items-center px-6 py-12 text-center"><Inbox className="h-8 w-8 text-blue-200" /><p className="mt-3 text-sm font-semibold text-slate-800">{emptyState.title}</p><p className="mt-1 text-xs leading-5 text-slate-500">{emptyState.description}</p></div>
-            ) : notifications.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={`flex w-full gap-3 rounded-xl p-3 text-left transition hover:bg-blue-50 ${item.isRead ? "opacity-70" : "bg-blue-50/70"}`}
-                onClick={() => { if (!item.isRead) markReadMutation.mutate({ id: item.id }); }}
-              >
-                <span className={`mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${categorySurface(item.category)}`}>
-                  {item.isRead ? <CheckCheck className="h-4 w-4" /> : <CategoryIcon category={item.category} />}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center justify-between gap-3"><span className="text-sm font-semibold text-slate-900">{item.title}</span><span className="shrink-0 text-[10px] text-slate-400">{formatNotificationDate(item.createdAt)}</span></span>
-                  <span className="mt-1 block text-xs leading-5 text-slate-600">{item.message}</span>
-                </span>
-              </button>
-            ))}
+            ) : notifications.map((item) => {
+              const canRespond = item.actionAvailable && item.reservationId !== null && !resolvedProposalIds.has(item.reservationId);
+              const isResponding = respondProposalMutation.isPending && respondProposalMutation.variables?.reservationId === item.reservationId;
+              return (
+                <div
+                  key={item.id}
+                  className={`rounded-xl p-3 transition ${item.isRead ? "opacity-70" : "bg-blue-50/70"}`}
+                >
+                  <button
+                    type="button"
+                    className="flex w-full gap-3 text-left hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                    onClick={() => { if (!item.isRead) markReadMutation.mutate({ id: item.id }); }}
+                  >
+                    <span className={`mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${categorySurface(item.category)}`}>
+                      {item.isRead ? <CheckCheck className="h-4 w-4" /> : <CategoryIcon category={item.category} />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center justify-between gap-3"><span className="text-sm font-semibold text-slate-900">{item.title}</span><span className="shrink-0 text-[10px] text-slate-400">{formatNotificationDate(item.createdAt)}</span></span>
+                      <span className="mt-1 block text-xs leading-5 text-slate-600">{item.message}</span>
+                    </span>
+                  </button>
+                  {canRespond && (
+                    <div className="ml-11 mt-3 flex flex-wrap items-center gap-2">
+                      <span className="mr-auto text-[11px] font-medium text-slate-500">Responder à proposta</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-8 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
+                        disabled={respondProposalMutation.isPending}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          respondProposalMutation.mutate({ reservationId: item.reservationId!, notificationId: item.id, action: "accept" });
+                        }}
+                        aria-label={`Aceitar proposta da notificação ${item.id}`}
+                      >
+                        {isResponding && respondProposalMutation.variables?.action === "accept" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Check className="mr-1.5 h-3.5 w-3.5" />}
+                        Aceitar
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 rounded-lg border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-700 shadow-none hover:bg-rose-100 hover:text-rose-800"
+                        disabled={respondProposalMutation.isPending}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          respondProposalMutation.mutate({ reservationId: item.reservationId!, notificationId: item.id, action: "decline" });
+                        }}
+                        aria-label={`Recusar proposta da notificação ${item.id}`}
+                      >
+                        {isResponding && respondProposalMutation.variables?.action === "decline" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <X className="mr-1.5 h-3.5 w-3.5" />}
+                        Recusar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </ScrollArea>
       </PopoverContent>

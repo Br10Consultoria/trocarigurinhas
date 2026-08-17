@@ -101,4 +101,12 @@ As funcionalidades de backend presentes no checkpoint foram reconstruídas e val
 - [x] Implementar filtro por tipo com contadores e estado vazio específico.
 - [x] Preservar SSE, leitura em massa e responsividade nos filtros.
 - [x] Testar a suíte completa de notificações e tipos.
-- [ ] Salvar checkpoint da atualização de filtros de notificação.
+- [x] Salvar checkpoint da atualização de filtros de notificação.
+
+## Ações rápidas na aba Trocas
+
+- [x] Separar backend e contratos entre aceitar uma proposta e concluir a troca.
+- [x] Atualizar a consulta de notificações para expor o `reservationId` e indicar propostas ativas.
+- [x] Adicionar ações rápidas que aceitem ou recusem a proposta sem concluir a negociação automaticamente.
+- [x] Cobrir os novos cenários com testes.
+- [ ] Executar o build completo e salvar o checkpoint da nova funcionalidade.

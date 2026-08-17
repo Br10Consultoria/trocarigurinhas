@@ -324,6 +324,12 @@ export async function setReservaStatus(id: number, status: "completed" | "cancel
   await db.update(figurinhas).set({ status: status === "completed" ? "traded" : "available" }).where(eq(figurinhas.id, row[0].figurinhaId));
 }
 
+export async function setReservaProposalStatus(id: number, proposalStatus: "pending" | "accepted") {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(reservas).set({ proposalStatus }).where(eq(reservas.id, id));
+}
+
 export async function completeReserva(reservaId: number, type: "trade" | "purchase", amount?: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -446,7 +452,7 @@ export async function createReservationAcceptedNotifications(reservationId: numb
     kind: "trade_accepted",
     category: "trade",
     title: "Reserva aceita",
-    message: `Um colecionador reservou ${cardLabel}. Entre em contato pelo WhatsApp para combinar a troca.`,
+    message: `Um colecionador enviou uma proposta para ${cardLabel}. Aceite ou recuse a proposta e combine a troca pelo WhatsApp.`,
     reservationId,
   });
 }
@@ -473,10 +479,21 @@ export async function getNotificationsForUser(userId: number, limit = 30, catego
   if (!db) return [];
   const filters = [eq(notifications.userId, userId)];
   if (category) filters.push(eq(notifications.category, category));
-  return db.select().from(notifications)
+  const rows = await db.select({ notification: notifications, reservationStatus: reservas.status, proposalStatus: reservas.proposalStatus, reservationOwnerId: reservas.ownerId })
+    .from(notifications)
+    .leftJoin(reservas, eq(notifications.reservationId, reservas.id))
     .where(and(...filters))
     .orderBy(desc(notifications.createdAt))
     .limit(Math.min(Math.max(limit, 1), 50));
+  return rows.map(({ notification, reservationStatus, proposalStatus, reservationOwnerId }) => ({
+    ...notification,
+    actionAvailable: notification.kind === "trade_accepted"
+      && notification.category === "trade"
+      && notification.reservationId !== null
+      && notification.userId === reservationOwnerId
+      && reservationStatus === "active"
+      && proposalStatus === "pending",
+  }));
 }
 
 export async function getUnreadNotificationCount(userId: number, category?: NotificationCategory) {

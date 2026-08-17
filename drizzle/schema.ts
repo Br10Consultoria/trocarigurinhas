@@ -81,6 +81,7 @@ export const reservas = mysqlTable(
     ownerId: int("ownerId").notNull(),
     expiresAt: timestamp("expiresAt").notNull(),
     status: mysqlEnum("status", ["active", "completed", "expired", "cancelled"]).notNull().default("active"),
+    proposalStatus: mysqlEnum("proposalStatus", ["pending", "accepted"]).notNull().default("pending"),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     updatedAt: timestamp("updatedAt").notNull().defaultNow().onUpdateNow(),
   },

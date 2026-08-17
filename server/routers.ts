@@ -170,10 +170,58 @@ export const appRouter = router({
     cancel: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       const result = await db.getReservaById(input.id);
       if (!result) throw new TRPCError({ code: "NOT_FOUND" });
-      if (result.reservation.reservedByUserId !== ctx.user!.id && ctx.user!.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      if (result.reservation.reservedByUserId !== ctx.user!.id && result.reservation.ownerId !== ctx.user!.id && ctx.user!.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
       await db.setReservaStatus(input.id, "cancelled");
       await db.logActivity(ctx.user!.id, "RESERVATION_CANCELLED", `Reserva ${input.id} cancelada`, "reserva", input.id);
       return { success: true };
+    }),
+    respondProposal: protectedProcedure.input(z.object({
+      reservationId: z.number().int().positive(),
+      notificationId: z.number().int().positive().optional(),
+      action: z.enum(["accept", "decline"]),
+    })).mutation(async ({ ctx, input }) => {
+      const result = await db.getReservaById(input.reservationId);
+      if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Reserva não encontrada." });
+      if (result.reservation.ownerId !== ctx.user!.id && ctx.user!.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Apenas o dono da figurinha pode responder a esta proposta." });
+      }
+      if (result.reservation.status !== "active") {
+        throw new TRPCError({ code: "CONFLICT", message: "Esta proposta não está mais ativa." });
+      }
+
+      try {
+        if (input.action === "decline") {
+          await db.setReservaStatus(input.reservationId, "cancelled");
+          await db.logActivity(ctx.user!.id, "PROPOSAL_DECLINED", `Proposta ${input.reservationId} recusada`, "reserva", input.reservationId);
+          await db.createNotification({
+            userId: result.reservation.reservedByUserId,
+            kind: "system_notice",
+            category: "trade",
+            title: "Proposta recusada",
+            message: `Sua proposta de reserva para ${result.card ? `${result.card.cardNumber} · ${result.card.playerName}` : "esta figurinha"} foi recusada pelo dono.`,
+            reservationId: input.reservationId,
+          });
+          if (input.notificationId) await db.markNotificationAsRead(ctx.user!.id, input.notificationId);
+          return { success: true, status: "declined" as const };
+        }
+
+        await db.setReservaProposalStatus(input.reservationId, "accepted");
+        await db.logActivity(ctx.user!.id, "PROPOSAL_ACCEPTED", `Proposta ${input.reservationId} aceita`, "reserva", input.reservationId);
+        await db.createNotification({
+          userId: result.reservation.reservedByUserId,
+          kind: "trade_accepted",
+          category: "trade",
+          title: "Proposta aceita",
+          message: `Sua proposta de reserva para ${result.card ? `${result.card.cardNumber} · ${result.card.playerName}` : "esta figurinha"} foi aceita. Entre em contato pelo WhatsApp para concluir a troca em até 24 horas.`,
+          reservationId: input.reservationId,
+        });
+        if (input.notificationId) await db.markNotificationAsRead(ctx.user!.id, input.notificationId);
+        return { success: true, status: "accepted" as const };
+      } catch (error) {
+        if (error instanceof Error && error.message === "RESERVA_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND" });
+        if (error instanceof Error && error.message === "RESERVA_NOT_ACTIVE") throw new TRPCError({ code: "CONFLICT", message: "Esta proposta não está mais ativa." });
+        throw error;
+      }
     }),
     complete: protectedProcedure.input(z.object({ id: z.number().int().positive(), type: z.enum(["trade", "purchase"]).default("trade"), amount: z.number().nonnegative().max(999999).optional() })).mutation(async ({ ctx, input }) => {
       const result = await db.getReservaById(input.id);
