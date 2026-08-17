@@ -97,6 +97,7 @@ function categorySurface(category: NotificationCategory) {
 export default function NotificationCenter() {
   const utils = trpc.useUtils();
   const [activeFilter, setActiveFilter] = useState<NotificationFilter>("all");
+  const [tradeStatusFilter, setTradeStatusFilter] = useState<"all" | "pending" | "accepted" | "declined">("all");
   const [liveConnected, setLiveConnected] = useState(false);
   const listInput = useMemo(
     () => ({
@@ -238,7 +239,26 @@ export default function NotificationCenter() {
     lastFilter.current = activeFilter;
   }, [activeFilter, notificationsQuery.data]);
 
-  const notifications = notificationsQuery.data ?? [];
+  const notificationsRaw = notificationsQuery.data ?? [];
+  const notifications = useMemo(() => {
+    if (activeFilter !== "trade" || tradeStatusFilter === "all") return notificationsRaw;
+    return notificationsRaw.filter((item) => {
+      const isTrade = item.category === "trade" && item.reservationId !== null;
+      if (!isTrade) return true;
+      if (tradeStatusFilter === "pending") return item.proposalStatus === "pending" && item.reservationStatus === "active";
+      if (tradeStatusFilter === "accepted") return item.proposalStatus === "accepted" || item.reservationStatus === "completed";
+      if (tradeStatusFilter === "declined") return item.reservationStatus === "cancelled" || item.reservationStatus === "expired";
+      return true;
+    });
+  }, [notificationsRaw, activeFilter, tradeStatusFilter]);
+
+  const tradeEmptyMessage = useMemo(() => {
+    if (activeFilter !== "trade" || tradeStatusFilter === "all") return null;
+    if (tradeStatusFilter === "pending") return { title: "Nenhuma proposta pendente", description: "Você não possui propostas de troca aguardando resposta no momento." };
+    if (tradeStatusFilter === "accepted") return { title: "Nenhuma proposta aceita", description: "Propostas aprovadas ou trocas concluídas aparecerão aqui." };
+    if (tradeStatusFilter === "declined") return { title: "Nenhuma proposta recusada ou expirada", description: "Propostas recusadas ou com reserva expirada aparecerão aqui." };
+    return null;
+  }, [activeFilter, tradeStatusFilter]);
   const unreadCount = unreadQuery.data ?? 0;
   const unreadCounts = unreadCountsQuery.data ?? { all: 0, trade: 0, purchase: 0, system: 0 };
   const emptyState = emptyStates[activeFilter];
@@ -284,7 +304,10 @@ export default function NotificationCenter() {
                 type="button"
                 role="tab"
                 aria-selected={activeFilter === option.value}
-                onClick={() => setActiveFilter(option.value)}
+                onClick={() => {
+                  setActiveFilter(option.value);
+                  if (option.value !== "trade") setTradeStatusFilter("all");
+                }}
                 className={`min-h-8 flex-1 whitespace-nowrap rounded-lg px-2.5 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
                   activeFilter === option.value
                     ? "bg-white text-blue-700 shadow-sm"
@@ -300,6 +323,30 @@ export default function NotificationCenter() {
               </button>
             ))}
           </div>
+          {activeFilter === "trade" && (
+            <div className="flex items-center gap-1.5 pt-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Status:</span>
+              {[
+                { value: "all", label: "Todas" },
+                { value: "pending", label: "Pendentes" },
+                { value: "accepted", label: "Aceitas" },
+                { value: "declined", label: "Recusadas" },
+              ].map((sub) => (
+                <button
+                  key={sub.value}
+                  type="button"
+                  onClick={() => setTradeStatusFilter(sub.value as any)}
+                  className={`rounded-md px-2 py-0.5 text-[10px] font-semibold transition ${
+                    tradeStatusFilter === sub.value
+                      ? "bg-orange-100 text-orange-800"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {sub.label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex justify-end">
             <Button
               variant="outline"
@@ -320,7 +367,11 @@ export default function NotificationCenter() {
             {notificationsQuery.isLoading ? (
               <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin text-blue-600" />Carregando notificações...</div>
             ) : notifications.length === 0 ? (
-              <div className="flex flex-col items-center px-6 py-12 text-center"><Inbox className="h-8 w-8 text-blue-200" /><p className="mt-3 text-sm font-semibold text-slate-800">{emptyState.title}</p><p className="mt-1 text-xs leading-5 text-slate-500">{emptyState.description}</p></div>
+              <div className="flex flex-col items-center px-6 py-12 text-center">
+                <Inbox className="h-8 w-8 text-blue-200" />
+                <p className="mt-3 text-sm font-semibold text-slate-800">{tradeEmptyMessage?.title ?? emptyState.title}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">{tradeEmptyMessage?.description ?? emptyState.description}</p>
+              </div>
             ) : notifications.map((item) => {
               const canRespond = item.actionAvailable && item.reservationId !== null && !resolvedProposalIds.has(item.reservationId);
               const isResponding = respondProposalMutation.isPending && respondProposalMutation.variables?.reservationId === item.reservationId;

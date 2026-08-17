@@ -14,3 +14,9 @@
 - [x] Adicionar modal de confirmação (AlertDialog) ao recusar propostas de troca.
 - [x] Adicionar modal de revisão e confirmação (AlertDialog) ao aceitar propostas de troca.
 - [x] Executar testes completos e build de produção com sucesso.
+
+## Filtro de status para propostas de troca
+
+- [x] Expor o `proposalStatus` e o `reservationStatus` na consulta de notificações do backend.
+- [x] Adicionar sub-abas ou botões de filtro (Todas, Pendentes, Aceitas, Recusadas) na aba Trocas da central.
+- [x] Garantir estados vazios e testes de validação do build.

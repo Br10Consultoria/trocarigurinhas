@@ -487,6 +487,8 @@ export async function getNotificationsForUser(userId: number, limit = 30, catego
     .limit(Math.min(Math.max(limit, 1), 50));
   return rows.map(({ notification, reservationStatus, proposalStatus, reservationOwnerId }) => ({
     ...notification,
+    reservationStatus: reservationStatus ?? null,
+    proposalStatus: proposalStatus ?? null,
     actionAvailable: notification.kind === "trade_accepted"
       && notification.category === "trade"
       && notification.reservationId !== null
