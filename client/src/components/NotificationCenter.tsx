@@ -40,10 +40,11 @@ type NotificationStreamEvent = {
   message: string;
 };
 
-type PendingDecline = {
+type PendingProposal = {
   reservationId: number;
   notificationId: number;
   title: string;
+  message: string;
 };
 
 const filterOptions: Array<{ value: NotificationFilter; label: string }> = [
@@ -132,10 +133,12 @@ export default function NotificationCenter() {
     onError: (error) => toast.error(error.message),
   });
   const [resolvedProposalIds, setResolvedProposalIds] = useState<Set<number>>(() => new Set());
-  const [pendingDecline, setPendingDecline] = useState<PendingDecline | null>(null);
+  const [pendingAccept, setPendingAccept] = useState<PendingProposal | null>(null);
+  const [pendingDecline, setPendingDecline] = useState<PendingProposal | null>(null);
   const respondProposalMutation = trpc.reservas.respondProposal.useMutation({
     onSuccess: (result, variables) => {
       setResolvedProposalIds((current) => new Set(current).add(variables.reservationId));
+      setPendingAccept(null);
       setPendingDecline(null);
       toast.success(result.status === "accepted" ? "Proposta aceita" : "Proposta recusada", {
         description: result.status === "accepted" ? "O proponente foi avisado. A reserva continua ativa para concluir a troca em até 24 horas." : "O proponente foi avisado sobre a recusa.",
@@ -349,7 +352,7 @@ export default function NotificationCenter() {
                         disabled={respondProposalMutation.isPending}
                         onClick={(event) => {
                           event.stopPropagation();
-                          respondProposalMutation.mutate({ reservationId: item.reservationId!, notificationId: item.id, action: "accept" });
+                          setPendingAccept({ reservationId: item.reservationId!, notificationId: item.id, title: item.title, message: item.message });
                         }}
                         aria-label={`Aceitar proposta da notificação ${item.id}`}
                       >
@@ -364,7 +367,7 @@ export default function NotificationCenter() {
                         disabled={respondProposalMutation.isPending}
                         onClick={(event) => {
                           event.stopPropagation();
-                          setPendingDecline({ reservationId: item.reservationId!, notificationId: item.id, title: item.title });
+                          setPendingDecline({ reservationId: item.reservationId!, notificationId: item.id, title: item.title, message: item.message });
                         }}
                         aria-label={`Recusar proposta da notificação ${item.id}`}
                       >
@@ -378,6 +381,54 @@ export default function NotificationCenter() {
             })}
           </div>
         </ScrollArea>
+        <AlertDialog
+          open={pendingAccept !== null}
+          onOpenChange={(open) => {
+            if (!open && !respondProposalMutation.isPending) setPendingAccept(null);
+          }}
+        >
+          <AlertDialogContent className="rounded-2xl border-slate-200 sm:max-w-md">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Revisar aceite da proposta</AlertDialogTitle>
+              <AlertDialogDescription>
+                Confira os dados abaixo antes de aprovar esta proposta de troca.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-3 rounded-xl border border-blue-100 bg-blue-50/60 p-4 text-sm">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">Proposta</p>
+                <p className="mt-1 font-semibold text-slate-900">{pendingAccept?.title ?? "Proposta de troca"}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">Detalhes</p>
+                <p className="mt-1 leading-5 text-slate-600">{pendingAccept?.message ?? "Confira os detalhes da figurinha antes de confirmar."}</p>
+              </div>
+              <div className="border-t border-blue-100 pt-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">Próxima etapa</p>
+                <p className="mt-1 leading-5 text-slate-600">O aceite aprova a proposta e mantém a reserva ativa. A troca ainda deverá ser combinada pelo WhatsApp e concluída em até 24 horas.</p>
+              </div>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={respondProposalMutation.isPending}>Voltar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-emerald-500"
+                disabled={respondProposalMutation.isPending || pendingAccept === null}
+                onClick={(event) => {
+                  event.preventDefault();
+                  if (!pendingAccept) return;
+                  respondProposalMutation.mutate({
+                    reservationId: pendingAccept.reservationId,
+                    notificationId: pendingAccept.notificationId,
+                    action: "accept",
+                  });
+                }}
+              >
+                {respondProposalMutation.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Check className="mr-1.5 h-4 w-4" />}
+                Confirmar aceite
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         <AlertDialog
           open={pendingDecline !== null}
           onOpenChange={(open) => {

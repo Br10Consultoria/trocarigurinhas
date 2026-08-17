@@ -89,7 +89,7 @@ describe("notification triggers", () => {
     expect(mockedDb.createReservationAcceptedNotifications).toHaveBeenCalledWith(8);
   });
 
-  it("accepts a trade proposal from the notification center", async () => {
+  it("accepts a trade proposal from the notification center after review confirmation", async () => {
     mockedDb.getReservaById.mockResolvedValueOnce({
       reservation: { id: 8, ownerId: 20, reservedByUserId: 10, status: "active" },
       card: { cardNumber: "A-01", playerName: "Jogador" },
