@@ -98,6 +98,7 @@ export default function NotificationCenter() {
   const utils = trpc.useUtils();
   const [activeFilter, setActiveFilter] = useState<NotificationFilter>("all");
   const [tradeStatusFilter, setTradeStatusFilter] = useState<"all" | "pending" | "accepted" | "declined">("all");
+  const [championshipFilter, setChampionshipFilter] = useState<string>("all");
   const [liveConnected, setLiveConnected] = useState(false);
   const listInput = useMemo(
     () => ({
@@ -240,17 +241,28 @@ export default function NotificationCenter() {
   }, [activeFilter, notificationsQuery.data]);
 
   const notificationsRaw = notificationsQuery.data ?? [];
+  const availableChampionships = useMemo(() => {
+    const set = new Set<string>();
+    notificationsRaw.forEach((item: any) => {
+      if (item.championship) set.add(item.championship);
+    });
+    return Array.from(set);
+  }, [notificationsRaw]);
+
   const notifications = useMemo(() => {
-    if (activeFilter !== "trade" || tradeStatusFilter === "all") return notificationsRaw;
-    return notificationsRaw.filter((item) => {
+    return notificationsRaw.filter((item: any) => {
       const isTrade = item.category === "trade" && item.reservationId !== null;
-      if (!isTrade) return true;
-      if (tradeStatusFilter === "pending") return item.proposalStatus === "pending" && item.reservationStatus === "active";
-      if (tradeStatusFilter === "accepted") return item.proposalStatus === "accepted" || item.reservationStatus === "completed";
-      if (tradeStatusFilter === "declined") return item.reservationStatus === "cancelled" || item.reservationStatus === "expired";
+      if (activeFilter === "trade") {
+        if (tradeStatusFilter !== "all" && isTrade) {
+          if (tradeStatusFilter === "pending" && !(item.proposalStatus === "pending" && item.reservationStatus === "active")) return false;
+          if (tradeStatusFilter === "accepted" && !(item.proposalStatus === "accepted" || item.reservationStatus === "completed")) return false;
+          if (tradeStatusFilter === "declined" && !(item.reservationStatus === "cancelled" || item.reservationStatus === "expired")) return false;
+        }
+        if (championshipFilter !== "all" && item.championship !== championshipFilter) return false;
+      }
       return true;
     });
-  }, [notificationsRaw, activeFilter, tradeStatusFilter]);
+  }, [notificationsRaw, activeFilter, tradeStatusFilter, championshipFilter]);
 
   const tradeEmptyMessage = useMemo(() => {
     if (activeFilter !== "trade" || tradeStatusFilter === "all") return null;
@@ -324,27 +336,59 @@ export default function NotificationCenter() {
             ))}
           </div>
           {activeFilter === "trade" && (
-            <div className="flex items-center gap-1.5 pt-1">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Status:</span>
-              {[
-                { value: "all", label: "Todas" },
-                { value: "pending", label: "Pendentes" },
-                { value: "accepted", label: "Aceitas" },
-                { value: "declined", label: "Recusadas" },
-              ].map((sub) => (
-                <button
-                  key={sub.value}
-                  type="button"
-                  onClick={() => setTradeStatusFilter(sub.value as any)}
-                  className={`rounded-md px-2 py-0.5 text-[10px] font-semibold transition ${
-                    tradeStatusFilter === sub.value
-                      ? "bg-orange-100 text-orange-800"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
-                >
-                  {sub.label}
-                </button>
-              ))}
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Status:</span>
+                {[
+                  { value: "all", label: "Todas" },
+                  { value: "pending", label: "Pendentes" },
+                  { value: "accepted", label: "Aceitas" },
+                  { value: "declined", label: "Recusadas" },
+                ].map((sub) => (
+                  <button
+                    key={sub.value}
+                    type="button"
+                    onClick={() => setTradeStatusFilter(sub.value as any)}
+                    className={`rounded-md px-2 py-0.5 text-[10px] font-semibold transition ${
+                      tradeStatusFilter === sub.value
+                        ? "bg-orange-100 text-orange-800"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    {sub.label}
+                  </button>
+                ))}
+              </div>
+              {availableChampionships.length > 0 && (
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Álbum:</span>
+                  <button
+                    type="button"
+                    onClick={() => setChampionshipFilter("all")}
+                    className={`rounded-md px-2 py-0.5 text-[10px] font-semibold transition whitespace-nowrap ${
+                      championshipFilter === "all"
+                        ? "bg-blue-100 text-blue-800"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    Todos
+                  </button>
+                  {availableChampionships.map((champ) => (
+                    <button
+                      key={champ}
+                      type="button"
+                      onClick={() => setChampionshipFilter(champ)}
+                      className={`rounded-md px-2 py-0.5 text-[10px] font-semibold transition whitespace-nowrap ${
+                        championshipFilter === champ
+                          ? "bg-blue-100 text-blue-800"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      {champ}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           <div className="flex justify-end">

@@ -20,3 +20,9 @@
 - [x] Expor o `proposalStatus` e o `reservationStatus` na consulta de notificações do backend.
 - [x] Adicionar sub-abas ou botões de filtro (Todas, Pendentes, Aceitas, Recusadas) na aba Trocas da central.
 - [x] Garantir estados vazios e testes de validação do build.
+
+## Filtro por campeonato ou álbum na aba Trocas
+
+- [x] Incluir o campeonato/álbum associado na consulta de notificações de troca no backend.
+- [x] Adicionar um seletor de campeonato/álbum na aba Trocas da central.
+- [x] Testar, validar build e salvar checkpoint.

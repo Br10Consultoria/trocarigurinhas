@@ -479,16 +479,25 @@ export async function getNotificationsForUser(userId: number, limit = 30, catego
   if (!db) return [];
   const filters = [eq(notifications.userId, userId)];
   if (category) filters.push(eq(notifications.category, category));
-  const rows = await db.select({ notification: notifications, reservationStatus: reservas.status, proposalStatus: reservas.proposalStatus, reservationOwnerId: reservas.ownerId })
+  const rows = await db.select({
+      notification: notifications,
+      reservationStatus: reservas.status,
+      proposalStatus: reservas.proposalStatus,
+      reservationOwnerId: reservas.ownerId,
+      championshipName: championships.name,
+    })
     .from(notifications)
     .leftJoin(reservas, eq(notifications.reservationId, reservas.id))
+    .leftJoin(figurinhas, eq(reservas.figurinhaId, figurinhas.id))
+    .leftJoin(championships, eq(figurinhas.championshipId, championships.id))
     .where(and(...filters))
     .orderBy(desc(notifications.createdAt))
     .limit(Math.min(Math.max(limit, 1), 50));
-  return rows.map(({ notification, reservationStatus, proposalStatus, reservationOwnerId }) => ({
+  return rows.map(({ notification, reservationStatus, proposalStatus, reservationOwnerId, championshipName }) => ({
     ...notification,
     reservationStatus: reservationStatus ?? null,
     proposalStatus: proposalStatus ?? null,
+    championship: championshipName ?? null,
     actionAvailable: notification.kind === "trade_accepted"
       && notification.category === "trade"
       && notification.reservationId !== null
